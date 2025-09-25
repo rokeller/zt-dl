@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 )
 
@@ -59,6 +60,7 @@ func (d *downloadable) Download(ctx context.Context) error {
 	tracker := downloadProgressTracker{
 		outType: "stderr",
 		source:  stderr,
+		target:  os.Stdout,
 
 		start:        time.Now().UTC(),
 		durationMsec: durationMsec,

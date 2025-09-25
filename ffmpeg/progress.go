@@ -14,6 +14,7 @@ import (
 type downloadProgressTracker struct {
 	outType string
 	source  io.Reader
+	target  io.Writer
 
 	start        time.Time
 	durationMsec int64
@@ -28,7 +29,7 @@ func (t *downloadProgressTracker) showDownloadProgress() {
 		pos := strings.Index(line, "time=")
 		if pos >= 0 {
 			m := r.FindStringSubmatch(line)
-			if len(m) <= 0 {
+			if nil == m || len(m) <= 0 {
 				continue
 			}
 
@@ -44,10 +45,12 @@ func (t *downloadProgressTracker) showDownloadProgress() {
 				remaining :=
 					(time.Millisecond * time.Duration(estimatedTotal-elapsed.Milliseconds())).
 						Truncate(time.Second)
-				fmt.Printf("Download progress: %5.1f%% | Elapsed: %10s | Remaining: %10s\r",
+				fmt.Fprintf(t.target,
+					"Download progress: %5.1f%% | Elapsed: %10s | Remaining: %10s\r",
 					relPos*100, elapsed.Truncate(time.Second), remaining)
 			} else {
-				fmt.Printf("Download progress: %5.1f%% | Elapsed: %10s\r",
+				fmt.Fprintf(t.target,
+					"Download progress: %5.1f%% | Elapsed: %10s\r",
 					relPos*100, elapsed.Truncate(time.Second))
 			}
 		}
@@ -56,23 +59,29 @@ func (t *downloadProgressTracker) showDownloadProgress() {
 	if err := scanner.Err(); err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println()
+	fmt.Fprintln(t.target)
 }
 
 func parseTimeMsec(strH, strM, strS, strMS string) (int64, error) {
 	h, err := strconv.ParseInt(strH, 10, 8)
 	if nil != err {
 		return 0, err
+	} else if h < 0 {
+		return 0, fmt.Errorf("hours must not be negative: %d", h)
 	}
 
 	m, err := strconv.ParseInt(strM, 10, 8)
 	if nil != err {
 		return 0, err
+	} else if m < 0 || m > 59 {
+		return 0, fmt.Errorf("minutes must be between 0 and 59 inclusive: %d", m)
 	}
 
 	s, err := strconv.ParseInt(strS, 10, 8)
 	if nil != err {
 		return 0, err
+	} else if s < 0 || s > 59 {
+		return 0, fmt.Errorf("seconds must be between 0 and 59 inclusive: %d", s)
 	}
 
 	msVal, err := strconv.ParseInt(strMS, 10, 16)
