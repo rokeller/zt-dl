@@ -10,11 +10,13 @@ import (
 
 // getRecordingCmd represents the get-recording command
 var getRecordingCmd = &cobra.Command{
-	Use: "get-recording",
+	Use:   "get-recording",
+	Short: "Download a recording to a local file",
+	Long: `Downloads audio and video streams of a recording to a local file.
+This requires [1mffmpeg[0m and [1mffprobe[0m to be in the PATH.`,
 
 	SilenceErrors: false,
-
-	RunE: runGetRecordingCmd,
+	RunE:          runGetRecordingCmd,
 }
 
 func init() {
@@ -43,7 +45,9 @@ func runGetRecordingCmd(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	acct := zattoo.NewAccount(cmd.Flag("email").Value.String())
+	email := cmd.Flag(string(Email)).Value.String()
+	domain := cmd.Flag(string(Domain)).Value.String()
+	acct := zattoo.NewAccount(email, domain)
 	if err := acct.Login(); nil != err {
 		return err
 	}

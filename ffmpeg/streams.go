@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -56,7 +55,7 @@ func (d *downloadable) DetectStreams(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	ffprobeCmd := exec.CommandContext(ctx, "ffprobe",
+	ffprobeCmd := cmdFactory(ctx, "ffprobe",
 		"-protocol_whitelist", protocolWhiteList,
 		"-print_format", "json",
 		"-show_format",

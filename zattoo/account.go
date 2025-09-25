@@ -18,11 +18,11 @@ type Account struct {
 	s *session
 }
 
-func NewAccount(email string) *Account {
+func NewAccount(email, domain string) *Account {
 	return &Account{
 		email:    email,
 		language: "en",
-		domain:   "zattoo.com",
+		domain:   domain,
 	}
 }
 
@@ -55,12 +55,8 @@ func (a *Account) Login() error {
 	return nil
 }
 
-func (a *Account) GetAllRecordings() error {
-	err := a.s.getPlaylist(*a)
-	if nil != err {
-		return err
-	}
-	return nil
+func (a *Account) GetAllRecordings() ([]recording, error) {
+	return a.s.getPlaylist(*a)
 }
 
 func (a *Account) GetProgramDetails(id int64) (programDetails, error) {

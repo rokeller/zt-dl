@@ -62,37 +62,23 @@ type programDetails struct {
 	End         int64  `json:"e"`
 }
 
-func (s *session) getPlaylist(a Account) error {
+func (s *session) getPlaylist(a Account) ([]recording, error) {
 	resp, err := s.client.Get(fmt.Sprintf("https://%s/zapi/v2/playlist", a.domain))
 	if nil != err {
-		return err
+		return nil, err
 	}
 
 	defer resp.Body.Close()
 	var res playlistResponse
 	if err := json.NewDecoder(resp.Body).Decode(&res); nil != err {
-		return err
+		return nil, err
 	}
 
 	if !res.Success {
-		return errors.New("failed to fetch playlist")
+		return nil, errors.New("failed to fetch playlist")
 	}
 
-	fmt.Println("Ready recordings:")
-	now := time.Now()
-	for i, r := range res.Recordings {
-		if r.End.After(now) {
-			// Skip recordings which haven't finished recording yet.
-			continue
-		}
-		if r.EpisodeTitle != "" {
-			fmt.Printf("%04d: %s - %s (%s/%s) (#%d)\n", i, r.Title, r.EpisodeTitle, r.ChannelId, r.Level, r.Id)
-		} else {
-			fmt.Printf("%04d: %s (%s/%s) (#%d)\n", i, r.Title, r.ChannelId, r.Level, r.Id)
-		}
-	}
-
-	return nil
+	return res.Recordings, nil
 }
 
 func (s *session) getRecording(a Account, id int64) (stream, error) {

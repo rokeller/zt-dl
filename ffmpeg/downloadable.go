@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os/exec"
 	"time"
 )
 
@@ -44,7 +43,7 @@ func (d *downloadable) Download(ctx context.Context) error {
 		video.Width, video.Height, video.BitRate, video.AvgFrameRate, video.Index)
 	fmt.Printf("Duration: %s\n", d.format.Duration)
 
-	ffmpegCmd := exec.CommandContext(ctx, "ffmpeg",
+	ffmpegCmd := cmdFactory(ctx, "ffmpeg",
 		"-protocol_whitelist", protocolWhiteList,
 		"-i", d.inputUrl,
 		"-map", fmt.Sprintf("0:%d", audio.Index),
@@ -57,11 +56,6 @@ func (d *downloadable) Download(ctx context.Context) error {
 		return err
 	}
 
-	fmt.Println("Starting download ...")
-	if err := ffmpegCmd.Start(); nil != err {
-		return err
-	}
-
 	tracker := downloadProgressTracker{
 		outType: "stderr",
 		source:  stderr,
@@ -70,6 +64,12 @@ func (d *downloadable) Download(ctx context.Context) error {
 		durationMsec: durationMsec,
 	}
 	go tracker.showDownloadProgress()
+
+	// Now start the ffmpeg process ...
+	fmt.Println("Starting download ...")
+	if err := ffmpegCmd.Start(); nil != err {
+		return err
+	}
 
 	if err := ffmpegCmd.Wait(); err != nil {
 		return err
