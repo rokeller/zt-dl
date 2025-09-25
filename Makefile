@@ -10,11 +10,11 @@ release:
 		-X github.com/rokeller/zt-dl/cmd.version=${VERSION_RAW}-local"
 
 .PHONY: test
-test: aqc
+test: zt-dl
 	@go test ./...
 
 .PHONY: cover
-cover: aqc
+cover: zt-dl
 	@go test ./... -coverprofile=coverage.out
 	@go tool cover -func=coverage.out
 	@go tool cover -html=coverage.out -o coverage.html
