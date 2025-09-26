@@ -22,7 +22,11 @@ func (testRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
 }
 
 func Test_defaultHeadersRoundTripper_RoundTrip(t *testing.T) {
-	req, err := http.NewRequest("TEST", "https://localhost/test", nil)
+	reqPost, err := http.NewRequest("POST", "https://localhost/test", nil)
+	if nil != err {
+		t.Fatalf("failed to create request: %v", err)
+	}
+	reqGet, err := http.NewRequest("GET", "https://localhost/test", nil)
 	if nil != err {
 		t.Fatalf("failed to create request: %v", err)
 	}
@@ -41,18 +45,35 @@ func Test_defaultHeadersRoundTripper_RoundTrip(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "Default Headers",
+			name: "POST",
 			fields: fields{
 				domain: "test.com",
 				T:      testRoundTripper{},
 			},
 			args: args{
-				req: req,
+				req: reqPost,
 			},
 			want: map[string][]string{
 				"Accept":           {"application/json"},
 				"User-Agent":       {"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"},
 				"Content-Type":     {"application/x-www-form-urlencoded"},
+				"X-Requested-With": {"XMLHttpRequest"},
+				"Referer":          {"https://test.com/client"},
+				"Origin":           {"https://test.com"},
+			},
+		},
+		{
+			name: "GET",
+			fields: fields{
+				domain: "test.com",
+				T:      testRoundTripper{},
+			},
+			args: args{
+				req: reqGet,
+			},
+			want: map[string][]string{
+				"Accept":           {"application/json"},
+				"User-Agent":       {"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"},
 				"X-Requested-With": {"XMLHttpRequest"},
 				"Referer":          {"https://test.com/client"},
 				"Origin":           {"https://test.com"},
