@@ -89,7 +89,7 @@ func (d *downloadable) DetectStreams(ctx context.Context) error {
 		case "audio":
 			sampleRate, err := strconv.ParseInt(s.SampleRate, 10, 0)
 			if nil != err {
-				return fmt.Errorf("failed to parse sample rate from '%s': %w", s.SampleRate, err)
+				return fmt.Errorf("failed to parse sample rate from %q: %w", s.SampleRate, err)
 			}
 			audio := audioStream{
 				stream: stream{
@@ -107,11 +107,11 @@ func (d *downloadable) DetectStreams(ctx context.Context) error {
 			}
 			avgFrameRate, err := strconv.ParseInt(avgFrameRateStr, 10, 0)
 			if nil != err {
-				return fmt.Errorf("failed to parse average frame rate from '%s': %w", s.AvgFrameRate, err)
+				return fmt.Errorf("failed to parse average frame rate from %q: %w", s.AvgFrameRate, err)
 			}
 			bitRate, err := strconv.ParseInt(s.BitRate, 10, 0)
 			if nil != err {
-				return fmt.Errorf("failed to parse bit rate from '%s': %w", s.BitRate, err)
+				return fmt.Errorf("failed to parse bit rate from %q: %w", s.BitRate, err)
 			}
 			video := videoStream{
 				stream: stream{

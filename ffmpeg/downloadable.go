@@ -78,7 +78,7 @@ func (d *downloadable) Download(ctx context.Context) error {
 	}
 
 	fmt.Println("Finished download.")
-	fmt.Printf("Recording written to '%s'.\n", d.outputPath)
+	fmt.Printf("Recording written to %q.\n", d.outputPath)
 
 	return nil
 }
