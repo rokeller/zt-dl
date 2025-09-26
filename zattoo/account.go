@@ -9,6 +9,20 @@ import (
 	"golang.org/x/term"
 )
 
+var httpClientFactory func(transport http.RoundTripper) *http.Client = func(transport http.RoundTripper) *http.Client {
+	return &http.Client{
+		Transport: transport,
+	}
+}
+
+var readPassword func() (string, error) = func() (string, error) {
+	if data, err := term.ReadPassword(int(os.Stdin.Fd())); nil != err {
+		return "", err
+	} else {
+		return string(data), nil
+	}
+}
+
 type Account struct {
 	email    string
 	password string
@@ -28,24 +42,25 @@ func NewAccount(email, domain string) *Account {
 
 func (a *Account) Login() error {
 	if a.password == "" {
-		a.readPassword()
+		if err := a.readPassword(); nil != err {
+			return err
+		}
 	}
 
 	jar, err := cookiejar.New(nil)
 	if nil != err {
-		return err
+		return fmt.Errorf("failed init cookie jar: %w", err)
 	}
 
-	client := http.Client{
-		Transport: &defaultHeadersRoundTripper{
+	client := httpClientFactory(
+		&defaultHeadersRoundTripper{
 			domain: a.domain,
 			T:      http.DefaultTransport,
-		},
-		Jar: jar,
-	}
+		})
+	client.Jar = jar
 
 	a.s = &session{
-		client: &client,
+		client: client,
 	}
 
 	if err := a.s.load(*a); nil != err {
@@ -72,15 +87,13 @@ func (a *Account) GetRecordingStreamUrl(id int64) (string, error) {
 }
 
 func (a *Account) readPassword() error {
-	fmt.Print("Please enter your password: ")
-	data, err := term.ReadPassword(int(os.Stdin.Fd()))
-	fmt.Println()
+	fmt.Println("Please enter your password:")
+	password, err := readPassword()
 
 	if nil != err {
-		return err
+		return fmt.Errorf("failed to read password: %w", err)
 	}
-
-	a.password = string(data)
+	a.password = password
 
 	return nil
 }
