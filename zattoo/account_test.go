@@ -56,11 +56,10 @@ func TestNewAccount(t *testing.T) {
 
 func TestAccount_Login(t *testing.T) {
 	tests := []struct {
-		name     string // description of this test case
-		email    string
-		password string
-		wantErr  bool
-
+		name        string // description of this test case
+		email       string
+		password    string
+		wantErr     bool
 		tokenResp   test.HttpResponse
 		sessionResp test.HttpResponse
 		loginResp   test.HttpResponse
@@ -207,10 +206,9 @@ func TestAccount_GetAllRecordings(t *testing.T) {
 		End:          time.Date(2025, 9, 26, 14, 13, 00, 0, time.UTC),
 	}
 	tests := []struct {
-		name    string // description of this test case
-		want    []recording
-		wantErr bool
-
+		name         string // description of this test case
+		want         []recording
+		wantErr      bool
 		playlistResp test.HttpResponse
 	}{
 		{
@@ -232,11 +230,6 @@ func TestAccount_GetAllRecordings(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			origReadPassword := readPassword
-			defer func() { readPassword = origReadPassword }()
-			readPassword = func() (string, error) {
-				return "blah", nil
-			}
 			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				switch r.RequestURI {
 				case "/zapi/v2/playlist":
@@ -269,6 +262,75 @@ func TestAccount_GetAllRecordings(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("GetAllRecordings() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAccount_GetRecordingStreamUrl(t *testing.T) {
+	tests := []struct {
+		name         string // description of this test case
+		id           int64
+		want         string
+		wantErr      bool
+		playlistResp test.HttpResponse
+	}{
+		{
+			name:    "Failure",
+			id:      111,
+			wantErr: true,
+		},
+		{
+			name: "Success",
+			id:   222,
+			want: "https://localhost/path/to/stream",
+			playlistResp: test.HttpResponse{
+				StatusCode: 200,
+				Body: test.MakeJson(map[string]any{
+					"success": true,
+					"stream": map[string]any{
+						"url": "https://localhost/path/to/stream",
+					},
+				}),
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.RequestURI {
+				case "/zapi/watch/recording/111":
+					w.WriteHeader(404)
+				case "/zapi/watch/recording/222":
+					if r.Method == http.MethodPost {
+						tt.playlistResp.Respond(w)
+						return
+					}
+				}
+				w.Header().Add("x-reason", "unsupported-uri")
+				w.WriteHeader(404)
+			}))
+			defer ts.Close()
+			client := ts.Client()
+			origHttpClientFactory := httpClientFactory
+			defer func() { httpClientFactory = origHttpClientFactory }()
+			httpClientFactory = func() *http.Client { return client }
+			tsUrl, _ := url.Parse(ts.URL)
+
+			a := NewAccount("test@user.com", tsUrl.Host)
+			a.s = &session{client: client}
+			got, gotErr := a.GetRecordingStreamUrl(tt.id)
+			if gotErr != nil {
+				if !tt.wantErr {
+					t.Errorf("GetRecordingStreamUrl() failed: %v", gotErr)
+				}
+				return
+			}
+			if tt.wantErr {
+				t.Fatal("GetRecordingStreamUrl() succeeded unexpectedly")
+			}
+			if got != tt.want {
+				t.Errorf("GetRecordingStreamUrl() = %v, want %v", got, tt.want)
 			}
 		})
 	}
