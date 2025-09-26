@@ -3,8 +3,6 @@ package zattoo
 import (
 	"errors"
 	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"reflect"
 	"testing"
 	"time"
@@ -107,7 +105,7 @@ func TestAccount_Login(t *testing.T) {
 			readPassword = func() (string, error) {
 				return tt.password, nil
 			}
-			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ts, client, host := test.NewHttpTestSetup(func(w http.ResponseWriter, r *http.Request) {
 				switch r.RequestURI {
 				case "/token.json":
 					if r.Method == http.MethodGet {
@@ -157,15 +155,13 @@ func TestAccount_Login(t *testing.T) {
 				}
 				w.Header().Add("x-reason", "unsupported-uri")
 				w.WriteHeader(404)
-			}))
+			})
 			defer ts.Close()
-			client := ts.Client()
 			origHttpClientFactory := httpClientFactory
 			defer func() { httpClientFactory = origHttpClientFactory }()
 			httpClientFactory = func() *http.Client { return client }
-			tsUrl, _ := url.Parse(ts.URL)
 
-			a := NewAccount(tt.email, tsUrl.Host)
+			a := NewAccount(tt.email, host)
 			gotErr := a.Login()
 			if gotErr != nil {
 				if !tt.wantErr {
@@ -230,7 +226,7 @@ func TestAccount_GetAllRecordings(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ts, client, host := test.NewHttpTestSetup(func(w http.ResponseWriter, r *http.Request) {
 				switch r.RequestURI {
 				case "/zapi/v2/playlist":
 					if r.Method == http.MethodGet {
@@ -240,15 +236,13 @@ func TestAccount_GetAllRecordings(t *testing.T) {
 				}
 				w.Header().Add("x-reason", "unsupported-uri")
 				w.WriteHeader(404)
-			}))
+			})
 			defer ts.Close()
-			client := ts.Client()
 			origHttpClientFactory := httpClientFactory
 			defer func() { httpClientFactory = origHttpClientFactory }()
 			httpClientFactory = func() *http.Client { return client }
-			tsUrl, _ := url.Parse(ts.URL)
 
-			a := NewAccount("user@test.com", tsUrl.Host)
+			a := NewAccount("user@test.com", host)
 			a.s = &session{client: client}
 			got, gotErr := a.GetAllRecordings()
 			if gotErr != nil {
@@ -297,7 +291,7 @@ func TestAccount_GetRecordingStreamUrl(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ts, client, host := test.NewHttpTestSetup(func(w http.ResponseWriter, r *http.Request) {
 				switch r.RequestURI {
 				case "/zapi/watch/recording/111":
 					w.WriteHeader(404)
@@ -309,15 +303,13 @@ func TestAccount_GetRecordingStreamUrl(t *testing.T) {
 				}
 				w.Header().Add("x-reason", "unsupported-uri")
 				w.WriteHeader(404)
-			}))
+			})
 			defer ts.Close()
-			client := ts.Client()
 			origHttpClientFactory := httpClientFactory
 			defer func() { httpClientFactory = origHttpClientFactory }()
 			httpClientFactory = func() *http.Client { return client }
-			tsUrl, _ := url.Parse(ts.URL)
 
-			a := NewAccount("test@user.com", tsUrl.Host)
+			a := NewAccount("test@user.com", host)
 			a.s = &session{client: client}
 			got, gotErr := a.GetRecordingStreamUrl(tt.id)
 			if gotErr != nil {
