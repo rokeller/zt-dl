@@ -104,7 +104,7 @@ func (s *session) fetchSession(a Account) error {
 	}
 	resp, err := s.client.Do(req)
 	if nil != err {
-		return fmt.Errorf("failed to initialize session: %w", err)
+		return fmt.Errorf("failed to get session initialization response: %w", err)
 	} else if resp.StatusCode != 200 {
 		return fmt.Errorf("failed to initialize session with status %d", resp.StatusCode)
 	}
@@ -135,21 +135,21 @@ func (s *session) login(a Account) error {
 		fmt.Sprintf("https://%s/zapi/v3/account/login", a.domain),
 		strings.NewReader(data.Encode()))
 	if nil != err {
-		return err
+		return fmt.Errorf("failed to create request for login: %w", err)
 	}
 	resp, err := s.client.Do(req)
 	if nil != err {
-		return err
+		return fmt.Errorf("failed to get login response: %w", err)
 	}
 
 	defer resp.Body.Close()
 	var res loginResponse
 	if err := json.NewDecoder(resp.Body).Decode(&res); nil != err {
-		return err
+		return fmt.Errorf("failed to parse JSON of login response: %w", err)
 	}
 
 	if !res.Active {
-		return errors.New("failed to login")
+		return errors.New("failed to login: inactive")
 	}
 
 	return nil
