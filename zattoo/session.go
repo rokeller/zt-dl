@@ -51,17 +51,19 @@ func (s *session) load(a Account) error {
 func (s *session) fetchSessionToken(a Account) error {
 	resp, err := s.client.Get(fmt.Sprintf("https://%s/token.json", a.domain))
 	if nil != err {
-		return err
+		return fmt.Errorf("failed to fetch session token: %w", err)
+	} else if resp.StatusCode != 200 {
+		return fmt.Errorf("failed to fetch session token with status %d", resp.StatusCode)
 	}
 
 	defer resp.Body.Close()
 	var res tokenResponse
 	if err := json.NewDecoder(resp.Body).Decode(&res); nil != err {
-		return err
+		return fmt.Errorf("failed to fetch session token: %w", err)
 	}
 
 	if !res.Success {
-		return errors.New("failed to fetch session token")
+		return errors.New("failed to fetch session token: response indicates failure")
 	}
 	s.sessionToken = res.SessionToken
 
@@ -71,12 +73,12 @@ func (s *session) fetchSessionToken(a Account) error {
 func (s *session) fetchSession(a Account) error {
 	uuid, err := uuid.NewRandom()
 	if nil != err {
-		return err
+		return fmt.Errorf("failed to create UUID when initializing session: %w", err)
 	}
 
 	u, err := url.Parse(fmt.Sprintf("https://%s", a.domain))
 	if nil != err {
-		return err
+		return fmt.Errorf("failed to parse target URL 'https://%s' when initializing session: %w", a.domain, err)
 	}
 	cookies := s.client.Jar.Cookies(u)
 	cookies = append(cookies, &http.Cookie{
@@ -98,21 +100,23 @@ func (s *session) fetchSession(a Account) error {
 		fmt.Sprintf("https://%s/zapi/v3/session/hello", a.domain),
 		strings.NewReader(data.Encode()))
 	if nil != err {
-		return err
+		return fmt.Errorf("failed to create request for initializing session: %w", err)
 	}
 	resp, err := s.client.Do(req)
 	if nil != err {
-		return err
+		return fmt.Errorf("failed to get session initialization response: %w", err)
+	} else if resp.StatusCode != 200 {
+		return fmt.Errorf("failed to initialize session with status %d", resp.StatusCode)
 	}
 
 	defer resp.Body.Close()
 	var res sessionInfoResponse
 	if err := json.NewDecoder(resp.Body).Decode(&res); nil != err {
-		return err
+		return fmt.Errorf("failed to parse JSON of session initialization response: %w", err)
 	}
 
 	if !(res.Active || res.Success) {
-		return errors.New("failed to initialize session (hello)")
+		return errors.New("failed to initialize session: unsuccessful / not active")
 	}
 	s.powerGuideHash = res.PowerGuideHash
 
@@ -131,21 +135,21 @@ func (s *session) login(a Account) error {
 		fmt.Sprintf("https://%s/zapi/v3/account/login", a.domain),
 		strings.NewReader(data.Encode()))
 	if nil != err {
-		return err
+		return fmt.Errorf("failed to create request for login: %w", err)
 	}
 	resp, err := s.client.Do(req)
 	if nil != err {
-		return err
+		return fmt.Errorf("failed to get login response: %w", err)
 	}
 
 	defer resp.Body.Close()
 	var res loginResponse
 	if err := json.NewDecoder(resp.Body).Decode(&res); nil != err {
-		return err
+		return fmt.Errorf("failed to parse JSON of login response: %w", err)
 	}
 
 	if !res.Active {
-		return errors.New("failed to login")
+		return errors.New("failed to login: inactive")
 	}
 
 	return nil

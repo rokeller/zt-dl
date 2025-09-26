@@ -101,7 +101,7 @@ func parseTimeMsec(strH, strM, strS, strMS string) (int64, error) {
 		ms = msVal
 
 	default:
-		return 0, fmt.Errorf("milliseconds string '%s' has unsupported length", strMS)
+		return 0, fmt.Errorf("milliseconds string %q has unsupported length", strMS)
 	}
 
 	return (h * 60 * 60 * 1000) + (m * 60 * 1000) + (s * 1000) + ms, nil

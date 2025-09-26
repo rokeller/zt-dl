@@ -54,7 +54,7 @@ func (d *downloadable) Download(ctx context.Context) error {
 
 	stderr, err := ffmpegCmd.StderrPipe()
 	if nil != err {
-		return err
+		return fmt.Errorf("failed to redirect stderr to pipe: %w", err)
 	}
 
 	tracker := downloadProgressTracker{
@@ -70,15 +70,15 @@ func (d *downloadable) Download(ctx context.Context) error {
 	// Now start the ffmpeg process ...
 	fmt.Println("Starting download ...")
 	if err := ffmpegCmd.Start(); nil != err {
-		return err
+		return fmt.Errorf("failed to start ffmpeg: %w", err)
 	}
 
 	if err := ffmpegCmd.Wait(); err != nil {
-		return err
+		return fmt.Errorf("failed to wait for ffmpeg to finish: %w", err)
 	}
 
 	fmt.Println("Finished download.")
-	fmt.Printf("Recording written to '%s'.\n", d.outputPath)
+	fmt.Printf("Recording written to %q.\n", d.outputPath)
 
 	return nil
 }

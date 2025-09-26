@@ -65,17 +65,17 @@ type programDetails struct {
 func (s *session) getPlaylist(a Account) ([]recording, error) {
 	resp, err := s.client.Get(fmt.Sprintf("https://%s/zapi/v2/playlist", a.domain))
 	if nil != err {
-		return nil, err
+		return nil, fmt.Errorf("failed to get playlist response: %w", err)
 	}
 
 	defer resp.Body.Close()
 	var res playlistResponse
 	if err := json.NewDecoder(resp.Body).Decode(&res); nil != err {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse JSON of playlist response: %w", err)
 	}
 
 	if !res.Success {
-		return nil, errors.New("failed to fetch playlist")
+		return nil, errors.New("failed to fetch playlist: unsuccessful")
 	}
 
 	return res.Recordings, nil
@@ -93,17 +93,17 @@ func (s *session) getRecording(a Account, id int64) (stream, error) {
 		fmt.Sprintf("https://%s/zapi/watch/recording/%d", a.domain, id),
 		strings.NewReader(data.Encode()))
 	if nil != err {
-		return stream{}, err
+		return stream{}, fmt.Errorf("failed to create request for getting recording: %w", err)
 	}
 	resp, err := s.client.Do(req)
 	if nil != err {
-		return stream{}, err
+		return stream{}, fmt.Errorf("failed to get recording response: %w", err)
 	}
 
 	defer resp.Body.Close()
 	var res watchRecordingResponse
 	if err := json.NewDecoder(resp.Body).Decode(&res); nil != err {
-		return stream{}, err
+		return stream{}, fmt.Errorf("failed to parse JSON of recording response: %w", err)
 	}
 
 	if !res.Success {
