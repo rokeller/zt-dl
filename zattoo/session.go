@@ -102,7 +102,6 @@ func (s *session) fetchSession(a Account) error {
 	if nil != err {
 		return fmt.Errorf("failed to create request for initializing session: %w", err)
 	}
-	req.Header.Add("content-type", "application/x-www-form-urlencoded")
 	resp, err := s.client.Do(req)
 	if nil != err {
 		return fmt.Errorf("failed to initialize session: %w", err)
@@ -138,7 +137,6 @@ func (s *session) login(a Account) error {
 	if nil != err {
 		return err
 	}
-	req.Header.Add("content-type", "application/x-www-form-urlencoded")
 	resp, err := s.client.Do(req)
 	if nil != err {
 		return err

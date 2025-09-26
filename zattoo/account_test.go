@@ -7,12 +7,13 @@ import (
 	"net/url"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/rokeller/zt-dl/test"
 )
 
 func TestDefaultHttpClientFactory(t *testing.T) {
-	c := httpClientFactory(http.DefaultTransport)
+	c := httpClientFactory()
 	if c.Transport != http.DefaultTransport {
 		t.Errorf("httpClientFactory(): Transport mismatch")
 	}
@@ -162,7 +163,7 @@ func TestAccount_Login(t *testing.T) {
 			client := ts.Client()
 			origHttpClientFactory := httpClientFactory
 			defer func() { httpClientFactory = origHttpClientFactory }()
-			httpClientFactory = func(_ http.RoundTripper) *http.Client { return client }
+			httpClientFactory = func() *http.Client { return client }
 			tsUrl, _ := url.Parse(ts.URL)
 
 			a := NewAccount(tt.email, tsUrl.Host)
@@ -191,5 +192,84 @@ func TestAccount_Login_ReadPasswordError(t *testing.T) {
 	gotErr := a.Login()
 	if nil == gotErr {
 		t.Errorf("Login() expected error, got nil")
+	}
+}
+
+func TestAccount_GetAllRecordings(t *testing.T) {
+	r := recording{
+		Id:           123,
+		ProgramId:    456,
+		ChannelId:    "test",
+		Level:        "hd",
+		Title:        "A Test Tale",
+		EpisodeTitle: "Unit Tests",
+		Start:        time.Date(2025, 9, 26, 12, 13, 00, 0, time.UTC),
+		End:          time.Date(2025, 9, 26, 14, 13, 00, 0, time.UTC),
+	}
+	tests := []struct {
+		name    string // description of this test case
+		want    []recording
+		wantErr bool
+
+		playlistResp test.HttpResponse
+	}{
+		{
+			name:    "Failure",
+			wantErr: true,
+		},
+		{
+			name: "Success",
+			want: []recording{r},
+
+			playlistResp: test.HttpResponse{
+				StatusCode: 200,
+				Body: test.MakeJson(map[string]any{
+					"success":    true,
+					"recordings": []any{r},
+				}),
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			origReadPassword := readPassword
+			defer func() { readPassword = origReadPassword }()
+			readPassword = func() (string, error) {
+				return "blah", nil
+			}
+			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.RequestURI {
+				case "/zapi/v2/playlist":
+					if r.Method == http.MethodGet {
+						tt.playlistResp.Respond(w)
+						return
+					}
+				}
+				w.Header().Add("x-reason", "unsupported-uri")
+				w.WriteHeader(404)
+			}))
+			defer ts.Close()
+			client := ts.Client()
+			origHttpClientFactory := httpClientFactory
+			defer func() { httpClientFactory = origHttpClientFactory }()
+			httpClientFactory = func() *http.Client { return client }
+			tsUrl, _ := url.Parse(ts.URL)
+
+			a := NewAccount("user@test.com", tsUrl.Host)
+			a.s = &session{client: client}
+			got, gotErr := a.GetAllRecordings()
+			if gotErr != nil {
+				if !tt.wantErr {
+					t.Errorf("GetAllRecordings() failed: %v", gotErr)
+				}
+				return
+			}
+			if tt.wantErr {
+				t.Fatal("GetAllRecordings() succeeded unexpectedly")
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("GetAllRecordings() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

@@ -9,10 +9,8 @@ import (
 	"golang.org/x/term"
 )
 
-var httpClientFactory func(transport http.RoundTripper) *http.Client = func(transport http.RoundTripper) *http.Client {
-	return &http.Client{
-		Transport: transport,
-	}
+var httpClientFactory func() *http.Client = func() *http.Client {
+	return &http.Client{Transport: http.DefaultTransport}
 }
 
 var readPassword func() (string, error) = func() (string, error) {
@@ -52,11 +50,12 @@ func (a *Account) Login() error {
 		return fmt.Errorf("failed init cookie jar: %w", err)
 	}
 
-	client := httpClientFactory(
-		&defaultHeadersRoundTripper{
-			domain: a.domain,
-			T:      http.DefaultTransport,
-		})
+	client := httpClientFactory()
+	// Wrap current transport with defaultHeadersRoundTripper.
+	client.Transport = &defaultHeadersRoundTripper{
+		domain: a.domain,
+		T:      client.Transport,
+	}
 	client.Jar = jar
 
 	a.s = &session{
