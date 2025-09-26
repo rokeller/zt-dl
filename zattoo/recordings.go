@@ -66,6 +66,8 @@ func (s *session) getPlaylist(a Account) ([]recording, error) {
 	resp, err := s.client.Get(fmt.Sprintf("https://%s/zapi/v2/playlist", a.domain))
 	if nil != err {
 		return nil, fmt.Errorf("failed to get playlist response: %w", err)
+	} else if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("failed to playlist with status %d", resp.StatusCode)
 	}
 
 	defer resp.Body.Close()
@@ -89,7 +91,7 @@ func (s *session) getRecording(a Account, id int64) (stream, error) {
 	data.Set("sdh_subtitles", "true")
 
 	req, err := http.NewRequest(
-		"POST",
+		http.MethodPost,
 		fmt.Sprintf("https://%s/zapi/watch/recording/%d", a.domain, id),
 		strings.NewReader(data.Encode()))
 	if nil != err {
@@ -98,6 +100,8 @@ func (s *session) getRecording(a Account, id int64) (stream, error) {
 	resp, err := s.client.Do(req)
 	if nil != err {
 		return stream{}, fmt.Errorf("failed to get recording response: %w", err)
+	} else if resp.StatusCode != 200 {
+		return stream{}, fmt.Errorf("failed to get recording with status %d", resp.StatusCode)
 	}
 
 	defer resp.Body.Close()
@@ -120,17 +124,19 @@ func (s *session) getProgramDetails(a Account, id int64) (programDetails, error)
 		a.domain, s.powerGuideHash, params.Encode())
 	resp, err := s.client.Get(u)
 	if nil != err {
-		return programDetails{}, err
+		return programDetails{}, fmt.Errorf("failed to get program details response: %w", err)
+	} else if resp.StatusCode != 200 {
+		return programDetails{}, fmt.Errorf("failed to get program details with status %d", resp.StatusCode)
 	}
 
 	defer resp.Body.Close()
 	var res programDetailsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&res); nil != err {
-		return programDetails{}, err
+		return programDetails{}, fmt.Errorf("failed to parse JSON of program details response: %w", err)
 	}
 
 	if !res.Success {
-		return programDetails{}, fmt.Errorf("failed to get program details (status %d)", resp.StatusCode)
+		return programDetails{}, errors.New("failed to get program details")
 	}
 
 	return res.Programs[0], nil
