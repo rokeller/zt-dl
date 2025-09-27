@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: ['linux','windows']
+        arch: ['386','amd64','arm','arm64']
+        exclude:
+          - os: windows
+            arch: 'arm'
+          - os: windows
+            arch: 'arm64'
+
+    steps:
+    - uses: actions/checkout@v5
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version-file: 'go.mod'
+
+    - name: Build
+      run: |
+        case "${{ matrix.os }}" in
+            windows)
+                EXT='.exe' ;;
+            *)
+                EXT='' ;;
+        esac
+        
+        ARCHIVE_BASE_NAME="zt-dl-${{ matrix.os }}-${{ matrix.arch }}"
+        CGO_ENABLED=0 GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build \
+            -o _out/zt-dl$EXT \
+            -ldflags "-s -w \
+                -X github.com/rokeller/zt-dl/cmd.version=${{ github.event.release.name }}"
+        
+        case "${{ matrix.os }}" in
+            windows)
+                zip -j _out/$ARCHIVE_BASE_NAME.zip _out/zt-dl$EXT
+                echo "ARCHIVE_PATH=_out/$ARCHIVE_BASE_NAME.zip" >> $GITHUB_ENV
+                echo "ARCHIVE_MEDIA_TYPE=application/zip" >> $GITHUB_ENV
+                ;;
+            *)
+                tar -cvzf _out/$ARCHIVE_BASE_NAME.tar.gz -C _out zt-dl$EXT
+                echo "ARCHIVE_PATH=_out/$ARCHIVE_BASE_NAME.tar.gz" >> $GITHUB_ENV
+                echo "ARCHIVE_MEDIA_TYPE=application/gzip" >> $GITHUB_ENV
+                ;;
+        esac
+
+    - name: Upload to release
+      uses: JasonEtco/upload-to-release@master
+      with:
+        args: ${{ env.ARCHIVE_PATH }} ${{ env.ARCHIVE_MEDIA_TYPE }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
