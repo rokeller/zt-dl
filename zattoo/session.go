@@ -96,7 +96,7 @@ func (s *session) fetchSession(a Account) error {
 	data.Set("client_app_token", s.sessionToken)
 
 	req, err := http.NewRequest(
-		"POST",
+		http.MethodPost,
 		fmt.Sprintf("https://%s/zapi/v3/session/hello", a.domain),
 		strings.NewReader(data.Encode()))
 	if nil != err {
@@ -131,7 +131,7 @@ func (s *session) login(a Account) error {
 	data.Set("format", "json")
 
 	req, err := http.NewRequest(
-		"POST",
+		http.MethodPost,
 		fmt.Sprintf("https://%s/zapi/v3/account/login", a.domain),
 		strings.NewReader(data.Encode()))
 	if nil != err {
@@ -140,6 +140,8 @@ func (s *session) login(a Account) error {
 	resp, err := s.client.Do(req)
 	if nil != err {
 		return fmt.Errorf("failed to get login response: %w", err)
+	} else if resp.StatusCode != 200 {
+		return fmt.Errorf("failed to login with status %d", resp.StatusCode)
 	}
 
 	defer resp.Body.Close()

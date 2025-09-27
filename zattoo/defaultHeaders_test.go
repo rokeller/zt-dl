@@ -98,3 +98,12 @@ func Test_defaultHeadersRoundTripper_RoundTrip(t *testing.T) {
 		})
 	}
 }
+
+func wrapHttpClientTransport(c *http.Client, domain string) *http.Client {
+	c.Transport = &defaultHeadersRoundTripper{
+		domain: domain,
+		T:      c.Transport,
+	}
+
+	return c
+}

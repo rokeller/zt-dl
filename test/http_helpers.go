@@ -3,6 +3,9 @@ package test
 import (
 	"encoding/json"
 	"net/http"
+	"net/http/cookiejar"
+	"net/http/httptest"
+	"net/url"
 )
 
 type HttpResponse struct {
@@ -25,4 +28,18 @@ func MakeJson(body any) []byte {
 	}
 
 	return j
+}
+
+func NewHttpTestSetup(handlerFunc http.HandlerFunc) (*httptest.Server, *http.Client, string) {
+	ts := httptest.NewTLSServer(http.HandlerFunc(handlerFunc))
+	client := ts.Client()
+
+	jar, err := cookiejar.New(nil)
+	if nil != err {
+		panic(err)
+	}
+	client.Jar = jar
+	tsUrl, _ := url.Parse(ts.URL)
+
+	return ts, client, tsUrl.Host
 }
