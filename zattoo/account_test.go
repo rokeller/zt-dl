@@ -2,6 +2,7 @@ package zattoo
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"reflect"
 	"testing"
@@ -202,10 +203,10 @@ func TestAccount_GetAllRecordings(t *testing.T) {
 		End:          time.Date(2025, 9, 26, 14, 13, 00, 0, time.UTC),
 	}
 	tests := []struct {
-		name         string // description of this test case
-		want         []recording
-		wantErr      bool
-		playlistResp test.HttpResponse
+		name    string // description of this test case
+		want    []recording
+		wantErr bool
+		resp    test.HttpResponse
 	}{
 		{
 			name:    "Failure",
@@ -214,8 +215,7 @@ func TestAccount_GetAllRecordings(t *testing.T) {
 		{
 			name: "Success",
 			want: []recording{r},
-
-			playlistResp: test.HttpResponse{
+			resp: test.HttpResponse{
 				StatusCode: 200,
 				Body: test.MakeJson(map[string]any{
 					"success":    true,
@@ -230,7 +230,7 @@ func TestAccount_GetAllRecordings(t *testing.T) {
 				switch r.RequestURI {
 				case "/zapi/v2/playlist":
 					if r.Method == http.MethodGet {
-						tt.playlistResp.Respond(w)
+						tt.resp.Respond(w)
 						return
 					}
 				}
@@ -256,6 +256,68 @@ func TestAccount_GetAllRecordings(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("GetAllRecordings() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAccount_GetProgramDetails(t *testing.T) {
+	p := programDetails{}
+	tests := []struct {
+		name    string // description of this test case
+		id      int64
+		want    programDetails
+		wantErr bool
+		resp    test.HttpResponse
+	}{
+		{
+			name:    "Failure",
+			id:      123,
+			wantErr: true,
+		},
+		{
+			name: "Success",
+			id:   234,
+			want: p,
+			resp: test.HttpResponse{
+				StatusCode: 200,
+				Body: test.MakeJson(map[string]any{
+					"success":  true,
+					"programs": []any{p},
+				}),
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts, client, host := test.NewHttpTestSetup(func(w http.ResponseWriter, r *http.Request) {
+				if fmt.Sprintf("/zapi/v2/cached/program/power_details/pwrgdhsh?program_ids=%d", tt.id) == r.RequestURI &&
+					r.Method == http.MethodGet {
+					tt.resp.Respond(w)
+					return
+				}
+				w.Header().Add("x-reason", "unsupported-uri")
+				w.WriteHeader(404)
+			})
+			defer ts.Close()
+			origHttpClientFactory := httpClientFactory
+			defer func() { httpClientFactory = origHttpClientFactory }()
+			httpClientFactory = func() *http.Client { return client }
+
+			a := NewAccount("user@test.com", host)
+			a.s = &session{client: client, powerGuideHash: "pwrgdhsh"}
+			got, gotErr := a.GetProgramDetails(tt.id)
+			if gotErr != nil {
+				if !tt.wantErr {
+					t.Errorf("GetProgramDetails() failed: %v", gotErr)
+				}
+				return
+			}
+			if tt.wantErr {
+				t.Fatal("GetProgramDetails() succeeded unexpectedly")
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("GetProgramDetails() = %v, want %v", got, tt.want)
 			}
 		})
 	}
