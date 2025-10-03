@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"time"
@@ -27,9 +28,9 @@ the final parenthesis per line), which is needed when downloading a specific rec
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
-func Execute() {
-	err := rootCmd.Execute()
-	if err != nil {
+func Execute(ctx context.Context) {
+	err := rootCmd.ExecuteContext(ctx)
+	if nil != err {
 		os.Exit(1)
 	}
 }
@@ -61,9 +62,9 @@ func runRootCmd(cmd *cobra.Command, args []string) error {
 			continue
 		}
 		if r.EpisodeTitle != "" {
-			fmt.Printf("%4d: %s - %s (%s/%s) (#%d)\n", i, r.Title, r.EpisodeTitle, r.ChannelId, r.Level, r.Id)
+			fmt.Printf("%4d: %s - %s (%s/%s) (ID %d)\n", i, r.Title, r.EpisodeTitle, r.ChannelId, r.Level, r.Id)
 		} else {
-			fmt.Printf("%4d: %s (%s/%s) (#%d)\n", i, r.Title, r.ChannelId, r.Level, r.Id)
+			fmt.Printf("%4d: %s (%s/%s) (ID %d)\n", i, r.Title, r.ChannelId, r.Level, r.Id)
 		}
 	}
 

@@ -9,6 +9,10 @@ release:
 	@CGO_ENABLED=0 go build -ldflags "-s -w \
 		-X github.com/rokeller/zt-dl/cmd.version=${VERSION_RAW}-local"
 
+.PHONY: client
+client:
+	@pnpm -C server/client/ build
+
 .PHONY: test
 test: zt-dl
 	@go test ./...

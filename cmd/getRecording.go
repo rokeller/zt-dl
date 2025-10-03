@@ -72,5 +72,5 @@ func runGetRecordingCmd(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	return d.Download(cmd.Context())
+	return d.Download(cmd.Context(), nil)
 }
