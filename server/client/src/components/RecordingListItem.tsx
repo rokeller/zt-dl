@@ -6,6 +6,7 @@ import ListItemText from '@mui/material/ListItemText';
 import Skeleton from '@mui/material/Skeleton';
 import { styled } from '@mui/material/styles';
 import Typography from '@mui/material/Typography';
+import { useSnackbar } from 'notistack';
 import type React from 'react';
 import type { Recording } from '../models';
 import { formatDate } from '../utils';
@@ -21,6 +22,8 @@ interface RecordingListItemProps {
 }
 
 function DownloadRecording({ recording }: React.PropsWithChildren<RecordingListItemProps>) {
+    const { enqueueSnackbar } = useSnackbar();
+
     async function startDownload() {
         const filename = recording.episode_title && recording.episode_title.length > 0 ?
             `${recording.title} - ${recording.episode_title}.mp4` :
@@ -34,12 +37,18 @@ function DownloadRecording({ recording }: React.PropsWithChildren<RecordingListI
                 }),
             })
             if (resp.ok) {
-                // alert('recording enqueued: ' + filename)
+                enqueueSnackbar(
+                    `Successfully enqueued download of "${filename}".`,
+                    { variant: 'success', });
             } else {
-                alert('could not enqueue: ' + filename);
+                enqueueSnackbar(
+                    `Failed to enqueue download of "${filename}".`,
+                    { variant: 'error', });
             }
         } catch (e) {
-            alert('failed to enqueue');
+            enqueueSnackbar(
+                `Failed to enqueue download of "${filename}": ${e}`,
+                { variant: 'error', });
             console.error('failed to enqueue recording download:', e);
         }
     }
@@ -80,7 +89,7 @@ export function RecordingListItem({ recording }: React.PropsWithChildren<Recordi
 export function RecordingListItemSkeleton() {
     return (
         <ListItem secondaryAction={
-            <Skeleton variant="circular"><IconButton /></Skeleton>
+            <Skeleton variant='circular'><IconButton /></Skeleton>
         }>
             <ListItemIcon>
                 <Skeleton sx={{

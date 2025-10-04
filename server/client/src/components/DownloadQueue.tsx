@@ -4,35 +4,13 @@ import Fab from '@mui/material/Fab';
 import Icon from '@mui/material/Icon';
 import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
+import { useSnackbar } from 'notistack';
 import React from 'react';
 import type { DownloadErroredEvent, DownloadStartedEvent, PendingDownload, ProgressUpdatedEvent, QueueEvent, StateUpdatedEvent } from '../models';
-import ProgressWithLabel from './ProgressWithLabel';
-
-interface DownloadProgressProps {
-    filename: string;
-    progress: ProgressUpdatedEvent;
-}
-
-function DownloadProgress({ filename, progress }: DownloadProgressProps) {
-    return (
-        <>
-            <Box>
-                <Typography>{progress.elapsed}</Typography>
-                <Typography variant='caption'>Elapsed</Typography>
-            </Box>
-            <Box>
-                <Typography>{progress.remaining}</Typography>
-                <Typography variant='caption'>Remaining</Typography>
-            </Box>
-            <Box sx={{ flexGrow: 1, }}>
-                <Typography variant='caption'>{filename}</Typography>
-                <ProgressWithLabel percentage={(progress.completed || 0) * 100} />
-            </Box>
-        </>
-    );
-}
+import { DownloadProgress } from './DownloadProgress';
 
 export function DownloadQueue() {
+    const { enqueueSnackbar } = useSnackbar();
     const [pending, setPending] = React.useState<PendingDownload[]>([]);
     const [progress, setProgress] = React.useState<ProgressUpdatedEvent>();
     const [downloading, setDownloading] = React.useState<DownloadStartedEvent>();
@@ -42,11 +20,19 @@ export function DownloadQueue() {
     React.useEffect(() => {
         const websocket = new WebSocket('ws://' + window.location.host + '/api/queue/events');
 
-        websocket.onopen = () => console.log('Connected to WebSocket server');
-        websocket.onerror = (event) => console.error('websocket error:', event);
+        websocket.onopen = () => {
+            enqueueSnackbar(
+                'Successfully connected to zt-dl event stream.',
+                { variant: 'info', });
+        };
+        websocket.onerror = (event) => {
+            enqueueSnackbar(
+                'Error from zt-dl event stream.',
+                { variant: 'error', });
+            console.error('websocket error:', event);
+        };
         websocket.onmessage = (event) => {
             const e = JSON.parse(event.data) as QueueEvent;
-            console.info('received event from server:', e);
             if (e.queueUpdated) {
                 setPending(e.queueUpdated.queue);
             } else if (e.downloadStarted) {
@@ -65,9 +51,16 @@ export function DownloadQueue() {
                 setState(e.stateUpdated);
                 setError(undefined);
                 setProgress(undefined);
+            } else {
+                console.info('received unknown/unsupported event from server:', e, event);
             }
         };
-        websocket.onclose = () => console.log('Disconnected from WebSocket server');
+        websocket.onclose = (event) => {
+            enqueueSnackbar(
+                'Disconnected from zt-dl event stream unexpectedly: ' + event.code,
+                { variant: 'error', });
+            console.warn('Disconnected from WebSocket server:', event);
+        };
 
         return () => websocket.close();
     }, []);
@@ -86,7 +79,10 @@ export function DownloadQueue() {
                         <Typography color='error'>{error.reason}</Typography> :
                         <Box>
                             <Typography variant='caption'>{downloading.filename}</Typography>
-                            <Typography>{state?.state} - {state?.reason}</Typography>
+                            {state ?
+                                <Typography>{state.state} - {state.reason}</Typography> :
+                                <Typography>Please be patient while the download is prepared ...</Typography>
+                            }
                         </Box>
                 : <Typography>Not downloading anything right now.</Typography>
             }

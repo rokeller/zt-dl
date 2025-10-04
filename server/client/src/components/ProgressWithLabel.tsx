@@ -2,6 +2,7 @@ import Box from '@mui/material/Box';
 import type { LinearProgressProps } from '@mui/material/LinearProgress';
 import LinearProgress from '@mui/material/LinearProgress';
 import Typography from '@mui/material/Typography';
+import { formatPercent } from '../utils';
 
 function LinearProgressWithLabel(props: LinearProgressProps & { value: number }) {
     return (
@@ -13,7 +14,7 @@ function LinearProgressWithLabel(props: LinearProgressProps & { value: number })
                 <Typography
                     variant='body2'
                     sx={{ color: 'text.secondary' }}
-                >{`${Math.round(props.value * 10) / 10}%`}</Typography>
+                >{formatPercent(props.value/100)}</Typography>
             </Box>
         </Box>
     );
