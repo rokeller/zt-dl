@@ -2,6 +2,7 @@ package ffmpeg
 
 import (
 	"bytes"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -9,49 +10,53 @@ import (
 
 func Test_downloadProgressTracker_showDownloadProgress(t *testing.T) {
 	tests := []struct {
-		name        string // description of this test case
-		pipeIn      string
-		expectedOut string
+		name             string // description of this test case
+		pipeIn           string
+		expectedProgress []DownloadProgress
 	}{
 		{
-			name:        "No valid progress updates",
-			pipeIn:      "blah\nblotz\nfoo\ntime=00:60:00.12",
-			expectedOut: "\n",
+			name:             "No valid progress updates",
+			pipeIn:           "blah\nblotz\nfoo\ntime=00:60:00.12",
+			expectedProgress: []DownloadProgress{},
 		},
 		{
-			name:        "Zero progress",
-			pipeIn:      "time=00:00:00.00",
-			expectedOut: "Download progress:   0.0% | Elapsed:        10s\r\n",
+			name:   "Zero progress",
+			pipeIn: "time=00:00:00.00",
+			expectedProgress: []DownloadProgress{
+				{RelCompleted: 0, Elapsed: time.Second * 10, Remaining: 24 * 999 * time.Hour},
+			},
 		},
 		{
-			name:        "Single update with time",
-			pipeIn:      "blah\ntime=n/a\nfoo=x time=00:01:40.00 bar=123\n",
-			expectedOut: "Download progress:  10.0% | Elapsed:        10s | Remaining:      1m30s\r\n",
+			name:   "Single update with time",
+			pipeIn: "blah\ntime=n/a\nfoo=x time=00:01:40.00 bar=123\n",
+			expectedProgress: []DownloadProgress{
+				{RelCompleted: .1, Elapsed: time.Second * 10, Remaining: time.Minute + time.Second*30},
+			},
 		},
 		{
 			name:   "Multiple updates with time",
 			pipeIn: "blah\nfoo=x time=00:01:40.00 bar=123\n\nqwer time=00:15:00.00 asdf\n",
-			expectedOut: "" +
-				"Download progress:  10.0% | Elapsed:        10s | Remaining:      1m30s\r" +
-				"Download progress:  90.0% | Elapsed:        10s | Remaining:         1s\r" +
-				"\n",
+			expectedProgress: []DownloadProgress{
+				{RelCompleted: .1, Elapsed: time.Second * 10, Remaining: time.Minute + time.Second*30},
+				{RelCompleted: .9, Elapsed: time.Second * 10, Remaining: time.Second},
+			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			target := bytes.Buffer{}
+			h := &testProgressHandler{progressUpdates: []DownloadProgress{}}
 			d := downloadProgressTracker{
-				source: strings.NewReader(tt.pipeIn),
-				target: &target,
+				handler: h,
+				source:  strings.NewReader(tt.pipeIn),
 
 				start:        time.Now().Add(-10 * time.Second),
 				durationMsec: (1000 * time.Second).Milliseconds(),
 			}
 
-			d.showDownloadProgress()
-			actualOut := target.String()
-			if actualOut != tt.expectedOut {
-				t.Errorf("showDownloadProgress() produced output %q, expected %q", actualOut, tt.expectedOut)
+			d.trackProgress()
+			actualProgress := h.progressUpdates
+			if !reflect.DeepEqual(actualProgress, tt.expectedProgress) {
+				t.Errorf("showDownloadProgress() produced output %v, expected %v", actualProgress, tt.expectedProgress)
 			}
 		})
 	}
@@ -174,6 +179,62 @@ func Test_parseTimeMsec(t *testing.T) {
 			}
 			if got == tt.want {
 				t.Errorf("parseTimeMsec() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+type testProgressHandler struct {
+	started         bool
+	progressUpdates []DownloadProgress
+	err             error
+	finished        bool
+}
+
+func (t *testProgressHandler) Start() {
+	t.started = true
+}
+
+func (t *testProgressHandler) UpdateProgress(p DownloadProgress) {
+	p.Elapsed = p.Elapsed.Truncate(time.Second)
+	t.progressUpdates = append(t.progressUpdates, p)
+}
+
+func (t *testProgressHandler) Error(err error) {
+	t.err = err
+}
+
+func (t *testProgressHandler) Finished() {
+	t.finished = true
+}
+
+func Test_consoleProgressHandler_UpdateProgress(t *testing.T) {
+	tests := []struct {
+		name           string // description of this test case
+		p              DownloadProgress
+		expectedOutput []byte
+	}{
+		{
+			name: "Update",
+			p: DownloadProgress{
+				RelCompleted: 0.1234,
+				Elapsed:      time.Minute*2 + time.Second*3 + time.Millisecond*4,
+				Remaining:    time.Minute*5 + time.Second*6,
+			},
+			expectedOutput: []byte("Download progress:  12.3% | Elapsed:       2m3s | Remaining:       5m6s\r"),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			buf := bytes.NewBuffer(nil)
+			h := consoleProgressHandler{
+				target: buf,
+			}
+			h.UpdateProgress(tt.p)
+			actualOutput := buf.Bytes()
+
+			if !reflect.DeepEqual(actualOutput, tt.expectedOutput) {
+				t.Errorf("got output = %q, want %q", buf, tt.expectedOutput)
 			}
 		})
 	}

@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	e "github.com/rokeller/zt-dl/exec"
 	"github.com/rokeller/zt-dl/test"
 )
 
@@ -60,7 +61,7 @@ func Test_downloadable_Download(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotErr := tt.d.Download(context.Background())
+			gotErr := tt.d.Download(context.Background(), nil)
 			if gotErr != nil {
 				if !tt.wantErr {
 					t.Errorf("Download() failed: %v", gotErr)
@@ -90,7 +91,7 @@ func Test_downloadable_Download_ffmpeg(t *testing.T) {
 	}
 
 	me := test.CallerFuncName(0)
-	cmdFactory = func(ctx context.Context, name string, arg ...string) *exec.Cmd {
+	e.CmdFactory = func(ctx context.Context, name string, arg ...string) *exec.Cmd {
 		return test.TestCommandContext(t, me, ctx, name, arg...)
 	}
 
@@ -114,7 +115,7 @@ func Test_downloadable_Download_ffmpeg(t *testing.T) {
 			BitRate:      12345,
 		},
 	}
-	err := d.Download(t.Context())
+	err := d.Download(t.Context(), nil)
 	if nil != err {
 		t.Errorf("downloadable.Download() got error %v, want nil", err)
 	}

@@ -10,7 +10,6 @@ import (
 
 type logMiddlewareWriter struct {
 	http.ResponseWriter
-
 	status int
 }
 
@@ -39,7 +38,7 @@ func (m *logMiddleware) Func() mux.MiddlewareFunc {
 			next.ServeHTTP(ww, r)
 
 			d := time.Since(startTime)
-			fmt.Printf("method=%s  uri=%s  status:%d duration:%s\n",
+			fmt.Printf("%s %s  status:%d duration:%s\n",
 				r.Method, r.RequestURI, ww.status, d)
 		})
 	}

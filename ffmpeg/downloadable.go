@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"time"
+
+	e "github.com/rokeller/zt-dl/exec"
 )
 
 type downloadable struct {
@@ -44,7 +46,7 @@ func (d *downloadable) Download(ctx context.Context, progress DownloadProgressHa
 		video.Width, video.Height, video.BitRate, video.AvgFrameRate, video.Index)
 	fmt.Printf("Duration: %s\n", d.format.Duration)
 
-	ffmpegCmd := cmdFactory(ctx, "ffmpeg",
+	ffmpegCmd := e.CmdFactory(ctx, "ffmpeg",
 		"-protocol_whitelist", protocolWhiteList,
 		"-i", d.inputUrl,
 		"-map", fmt.Sprintf("0:%d", audio.Index),

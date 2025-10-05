@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
-	"os/exec"
 	"runtime"
 	"sync"
 	"time"
 
 	"github.com/gorilla/mux"
+	e "github.com/rokeller/zt-dl/exec"
 	"github.com/rokeller/zt-dl/zattoo"
 )
 
@@ -68,7 +68,7 @@ func startHttpServer(ctx context.Context, a *zattoo.Account, outdir string, port
 	return srv
 }
 
-func open(url string) error {
+func open(ctx context.Context, url string) error {
 	var cmd string
 	var args []string
 
@@ -82,5 +82,5 @@ func open(url string) error {
 		cmd = "xdg-open"
 	}
 	args = append(args, url)
-	return exec.Command(cmd, args...).Start()
+	return e.CmdFactory(ctx, cmd, args...).Start()
 }
