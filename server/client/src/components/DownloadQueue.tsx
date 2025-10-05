@@ -19,13 +19,18 @@ export function DownloadQueue() {
 
     React.useEffect(() => {
         const websocket = new WebSocket('ws://' + window.location.host + '/api/queue/events');
+        let connected = false;
 
         websocket.onopen = () => {
+            connected = true;
             enqueueSnackbar(
                 'Successfully connected to zt-dl event stream.',
                 { variant: 'info', });
         };
         websocket.onerror = (event) => {
+            if (!connected) {
+                return;
+            }
             enqueueSnackbar(
                 'Error from zt-dl event stream.',
                 { variant: 'error', });
@@ -56,10 +61,15 @@ export function DownloadQueue() {
             }
         };
         websocket.onclose = (event) => {
+            if (!connected) {
+                return;
+            }
+
             enqueueSnackbar(
                 'Disconnected from zt-dl event stream unexpectedly: ' + event.code,
                 { variant: 'error', });
-            console.warn('Disconnected from WebSocket server:', event);
+            console.warn('disconnected from websocket server:', event);
+            connected = false;
         };
 
         return () => websocket.close();

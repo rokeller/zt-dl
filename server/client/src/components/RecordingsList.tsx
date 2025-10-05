@@ -3,6 +3,7 @@ import List from '@mui/material/List';
 import React from 'react';
 import { fixRecording, type Recording } from '../models';
 import { RecordingListItem, RecordingListItemSkeleton } from './RecordingListItem';
+import { Typography } from '@mui/material';
 
 function isReady(r: Recording): boolean {
     fixRecording(r);
@@ -19,6 +20,7 @@ function YearDivider({ year }: YearDividerProps) {
 
 export function RecordingsList() {
     const [recordings, setRecordings] = React.useState<Recording[]>();
+    const [fetchError, setFetchError] = React.useState<string>();
 
     React.useEffect(() => {
         loadRecordings();
@@ -30,10 +32,12 @@ export function RecordingsList() {
             if (resp.ok) {
                 const rec = (await resp.json()) as Recording[];
                 setRecordings(rec);
+            } else {
+                setFetchError("status: " + resp.status);
             }
         } catch (e) {
             console.error('error fetching recordings:', e);
-            throw e;
+            setFetchError(String(e));
         }
     }
 
@@ -47,6 +51,12 @@ export function RecordingsList() {
             );
         }
         return null;
+    }
+
+    if (fetchError) {
+        return (
+            <Typography variant='h6' color='error'>Failed to get recordings ({fetchError}). Is the server running?</Typography>
+        );
     }
 
     const listItems = recordings ?
