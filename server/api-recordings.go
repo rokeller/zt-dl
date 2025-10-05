@@ -36,7 +36,7 @@ func (rec recordings) listAll(w http.ResponseWriter, r *http.Request) {
 	if nil != err {
 		w.WriteHeader(500)
 		j.Encode(map[string]any{
-			"err": err,
+			"err": err.Error(),
 		})
 		return
 	}
@@ -57,7 +57,7 @@ func (rec recordings) enqueue(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(400)
 		j.Encode(map[string]any{
 			"code": "error_parsing_recordingId",
-			"err":  err,
+			"err":  err.Error(),
 		})
 		return
 	}
@@ -66,7 +66,7 @@ func (rec recordings) enqueue(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(400)
 		j.Encode(map[string]any{
 			"code": "error_parsing_body",
-			"err":  err,
+			"err":  err.Error(),
 		})
 		return
 	}
