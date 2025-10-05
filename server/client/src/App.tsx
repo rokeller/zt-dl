@@ -14,7 +14,10 @@ function App() {
     return (
         <ThemeProvider theme={darkTheme}>
             <CssBaseline />
-            <SnackbarProvider maxSnack={10}>
+            <SnackbarProvider maxSnack={10} anchorOrigin={{
+                horizontal: 'right',
+                vertical: 'bottom',
+            }}>
                 <Layout />
             </SnackbarProvider>
         </ThemeProvider>
