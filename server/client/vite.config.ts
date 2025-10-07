@@ -6,7 +6,7 @@ export default defineConfig({
     plugins: [react()],
     server: {
         proxy: {
-            '/api/queue/events': {
+            '/api/queues/events': {
                 target: 'http://localhost:8080',
                 ws: true,
             },

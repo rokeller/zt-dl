@@ -38,6 +38,7 @@ export interface ProgressUpdatedEvent {
 }
 
 export interface DownloadErroredEvent {
+    filename: string;
     reason: string;
 }
 

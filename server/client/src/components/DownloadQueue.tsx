@@ -6,7 +6,7 @@ import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
 import { useSnackbar } from 'notistack';
 import React from 'react';
-import type { DownloadErroredEvent, DownloadStartedEvent, PendingDownload, ProgressUpdatedEvent, QueueEvent, StateUpdatedEvent } from '../models';
+import type { DownloadStartedEvent, PendingDownload, ProgressUpdatedEvent, QueueEvent, StateUpdatedEvent } from '../models';
 import { DownloadProgress } from './DownloadProgress';
 
 export function DownloadQueue() {
@@ -14,11 +14,10 @@ export function DownloadQueue() {
     const [pending, setPending] = React.useState<PendingDownload[]>([]);
     const [progress, setProgress] = React.useState<ProgressUpdatedEvent>();
     const [downloading, setDownloading] = React.useState<DownloadStartedEvent>();
-    const [error, setError] = React.useState<DownloadErroredEvent>();
     const [state, setState] = React.useState<StateUpdatedEvent>();
 
     React.useEffect(() => {
-        const websocket = new WebSocket('ws://' + window.location.host + '/api/queue/events');
+        const websocket = new WebSocket('ws://' + window.location.host + '/api/queues/events');
         let connected = false;
 
         websocket.onopen = () => {
@@ -41,20 +40,22 @@ export function DownloadQueue() {
             if (e.queueUpdated) {
                 setPending(e.queueUpdated.queue);
             } else if (e.downloadStarted) {
+                enqueueSnackbar(
+                    `Started download of "${e.downloadStarted.filename}" ...`,
+                    { variant: 'info', });
                 setDownloading(e.downloadStarted);
                 setState(undefined);
-                setError(undefined);
             } else if (e.progressUpdated) {
                 setProgress(e.progressUpdated);
                 setState(undefined);
-                setError(undefined);
             } else if (e.downloadErrored) {
-                setError(e.downloadErrored);
+                enqueueSnackbar(
+                    `Download of "${e.downloadErrored.filename}" failed: ${e.downloadErrored.reason}`,
+                    { variant: 'error', });
                 setState(undefined);
                 setProgress(undefined);
             } else if (e.stateUpdated) {
                 setState(e.stateUpdated);
-                setError(undefined);
                 setProgress(undefined);
             } else {
                 console.info('received unknown/unsupported event from server:', e, event);
@@ -85,15 +86,13 @@ export function DownloadQueue() {
             {downloading ?
                 progress ?
                     <DownloadProgress filename={downloading.filename} progress={progress} /> :
-                    error ?
-                        <Typography color='error'>{error.reason}</Typography> :
-                        <Box>
-                            <Typography variant='caption'>{downloading.filename}</Typography>
-                            {state ?
-                                <Typography>{state.state} - {state.reason}</Typography> :
-                                <Typography>Please be patient while the download is prepared ...</Typography>
-                            }
-                        </Box>
+                    <Box>
+                        <Typography variant='caption'>{downloading.filename}</Typography>
+                        {state ?
+                            <Typography>{state.state} - {state.reason}</Typography> :
+                            <Typography>Please be patient while the download is prepared ...</Typography>
+                        }
+                    </Box>
                 : <Typography>Not downloading anything right now.</Typography>
             }
         </Toolbar >
