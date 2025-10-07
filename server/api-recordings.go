@@ -7,29 +7,22 @@ import (
 	"strconv"
 
 	"github.com/gorilla/mux"
-	"github.com/rokeller/zt-dl/zattoo"
 )
 
-type recordings struct {
-	a      *zattoo.Account
-	dlq    *downloadQueue
-	outdir string
+type recordingsApiController struct {
+	*server
 }
 
-func AddRecordingsApi(a *zattoo.Account, dlq *downloadQueue, outdir string, api *mux.Router) {
+func AddRecordingsApi(s *server, api *mux.Router) {
 	r := api.PathPrefix("/recordings").Subrouter()
 
-	rec := recordings{
-		a:      a,
-		dlq:    dlq,
-		outdir: outdir,
-	}
-	r.HandleFunc("/", rec.listAll).Methods(http.MethodGet)
-	r.HandleFunc("/{recordingId}/enqueue", rec.enqueue).Methods(http.MethodPost)
+	c := recordingsApiController{s}
+	r.HandleFunc("/", c.listAll).Methods(http.MethodGet)
+	r.HandleFunc("/{recordingId}/enqueue", c.enqueueDownload).Methods(http.MethodPost)
 }
 
-func (rec recordings) listAll(w http.ResponseWriter, r *http.Request) {
-	recordings, err := rec.a.GetAllRecordings()
+func (c recordingsApiController) listAll(w http.ResponseWriter, r *http.Request) {
+	recordings, err := c.a.GetAllRecordings()
 
 	w.Header().Add("content-type", "application/json")
 	j := json.NewEncoder(w)
@@ -45,7 +38,7 @@ func (rec recordings) listAll(w http.ResponseWriter, r *http.Request) {
 	j.Encode(recordings)
 }
 
-func (rec recordings) enqueue(w http.ResponseWriter, r *http.Request) {
+func (c recordingsApiController) enqueueDownload(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	recordingIdStr := vars["recordingId"]
 
@@ -80,8 +73,8 @@ func (rec recordings) enqueue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	outputPath := path.Join(rec.outdir, filename)
-	rec.dlq.Enqueue(recordingId, outputPath)
+	outputPath := path.Join(c.outdir, filename)
+	c.dlq.Enqueue(recordingId, outputPath)
 
 	w.WriteHeader(200)
 	j.Encode(map[string]any{

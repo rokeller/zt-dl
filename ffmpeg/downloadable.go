@@ -82,7 +82,7 @@ func (d *downloadable) Download(ctx context.Context, progress DownloadProgressHa
 	}
 
 	if err := ffmpegCmd.Wait(); nil != err {
-		return fmt.Errorf("failed to wait for ffmpeg to finish: %w", err)
+		return fmt.Errorf("ffmpeg failed: %w", err)
 	}
 	progress.Finished()
 	return nil

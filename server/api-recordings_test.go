@@ -13,7 +13,7 @@ import (
 	"github.com/rokeller/zt-dl/zattoo"
 )
 
-func Test_recordings_listAll(t *testing.T) {
+func Test_recordingsApiController_listAll(t *testing.T) {
 	tests := []struct {
 		name       string
 		resp       test.HttpResponse
@@ -61,14 +61,15 @@ func Test_recordings_listAll(t *testing.T) {
 			})
 			defer ts.Close()
 			a := zattoo.NewAccountWithSession(t, host, client)
-			rec := recordings{
+			s := &server{
 				a:   a,
 				dlq: &downloadQueue{},
 			}
+			c := recordingsApiController{s}
 
 			r, _ := http.NewRequest(http.MethodGet, "blah", nil)
 			w := httptest.NewRecorder()
-			rec.listAll(w, r)
+			c.listAll(w, r)
 			if w.Result().StatusCode != tt.wantStatus {
 				t.Errorf("response status got %d, want %d", w.Result().StatusCode, tt.wantStatus)
 			}
@@ -79,7 +80,7 @@ func Test_recordings_listAll(t *testing.T) {
 	}
 }
 
-func Test_recordings_enqueue(t *testing.T) {
+func Test_recordingsApiController_enqueueDownloadDownload(t *testing.T) {
 	tests := []struct {
 		name               string
 		recordingId        string
@@ -88,6 +89,7 @@ func Test_recordings_enqueue(t *testing.T) {
 		wantStatus         int
 		wantBody           []byte
 		wantQueue          []toDownload
+		wantEvents         []event
 	}{
 		{
 			name:        "Status400/MalformedRecordingId",
@@ -125,14 +127,21 @@ func Test_recordings_enqueue(t *testing.T) {
 			wantQueue: []toDownload{
 				{RecordingId: 3456, OutputPath: "/tmp/test/my-file.mp4"},
 			},
+			wantEvents: []event{
+				{QueueUpdated: &eventQueueUpdated{Queue: []toDownload{
+					{RecordingId: 3456, OutputPath: "/tmp/test/my-file.mp4"},
+				}}},
+			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rec := recordings{
+			s := &server{
+				hub:    newHub(),
 				outdir: "/tmp/test",
-				dlq:    &downloadQueue{},
 			}
+			s.dlq = newDownloadQueue(s)
+			c := recordingsApiController{s}
 			var reqBody io.Reader
 			if nil != tt.requestBody {
 				reqBody = bytes.NewBuffer(tt.requestBody)
@@ -143,7 +152,7 @@ func Test_recordings_enqueue(t *testing.T) {
 			})
 			r.Header.Add("content-type", tt.requestContentType)
 			w := httptest.NewRecorder()
-			rec.enqueue(w, r)
+			c.enqueueDownload(w, r)
 
 			if w.Result().StatusCode != tt.wantStatus {
 				t.Errorf("response status got %d, want %d", w.Result().StatusCode, tt.wantStatus)
@@ -151,13 +160,16 @@ func Test_recordings_enqueue(t *testing.T) {
 			if w.Body.String() != string(tt.wantBody) {
 				t.Errorf("response body got %q, want %q", w.Body.String(), string(tt.wantBody))
 			}
-			if len(rec.dlq.q) > 0 {
-				if !reflect.DeepEqual(rec.dlq.q, tt.wantQueue) {
-					t.Errorf("got queue %v, want %v", rec.dlq.q, tt.wantQueue)
+			if len(c.dlq.q) > 0 {
+				if !reflect.DeepEqual(c.dlq.q, tt.wantQueue) {
+					t.Errorf("got queue %v, want %v", c.dlq.q, tt.wantQueue)
 				}
 			} else if len(tt.wantQueue) > 0 {
-				t.Errorf("got queue %v, want %v", rec.dlq.q, tt.wantQueue)
+				t.Errorf("got queue %v, want %v", c.dlq.q, tt.wantQueue)
 			}
+
+			consumeEvents(t, s.hub.outbox, tt.wantEvents)
+			ensureNoMoreEvents(t, s.hub.outbox)
 		})
 	}
 }

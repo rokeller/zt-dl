@@ -1,10 +1,5 @@
 package server
 
-// TODO: create a hub so dispatching to multiple websockets is possible
-var (
-	events chan event = make(chan event, 10)
-)
-
 type event struct {
 	QueueUpdated    *eventQueueUpdated    `json:"queueUpdated,omitempty"`
 	DownloadStarted *eventDownloadStarted `json:"downloadStarted,omitempty"`
@@ -28,7 +23,8 @@ type eventProgressUpdated struct {
 }
 
 type eventDownloadErrored struct {
-	Reason string `json:"reason"`
+	Filename string `json:"filename"`
+	Reason   string `json:"reason"`
 }
 
 type eventStateUpdated struct {

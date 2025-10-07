@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"os/exec"
-	"reflect"
 	"runtime"
 	"testing"
 	"time"
@@ -13,20 +12,6 @@ import (
 	"github.com/rokeller/zt-dl/test"
 	"github.com/rokeller/zt-dl/zattoo"
 )
-
-func cleanupEvents() {
-	for len(events) > 0 {
-		<-events
-	}
-}
-
-func consumeEvent(t *testing.T, want event) {
-	t.Helper()
-	got := <-events
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("consumed event; got %v, want %v", got, want)
-	}
-}
 
 func TestServe(t *testing.T) {
 	type args struct {
@@ -45,7 +30,6 @@ func TestServe(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Cleanup(cleanupEvents)
 			ctx, cancel := context.WithTimeout(t.Context(), time.Millisecond*100)
 			defer cancel()
 
@@ -54,7 +38,7 @@ func TestServe(t *testing.T) {
 			if nil != err {
 				t.Fatalf("failed to get temporary dir: %v", err)
 			}
-			if err := Serve(ctx, a, outdir, tt.port); (err != nil) != tt.wantErr {
+			if err := Serve(ctx, a, outdir, tt.port); (nil != err) != tt.wantErr {
 				t.Errorf("Serve() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
@@ -78,7 +62,6 @@ func Test_open(t *testing.T) {
 		return
 	}
 
-	t.Cleanup(cleanupEvents)
 	me := test.CallerFuncName(0)
 	e.CmdFactory = func(ctx context.Context, name string, arg ...string) *exec.Cmd {
 		return test.TestCommandContext(t, me, ctx, name, arg...)

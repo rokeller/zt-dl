@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"os"
 	"runtime"
 	"sync"
 	"time"
@@ -18,38 +19,64 @@ import (
 //go:embed client/dist/assets client/dist/index.html
 var content embed.FS
 
+type server struct {
+	a   *zattoo.Account
+	dlq *downloadQueue
+	hub *wsHub
+
+	port   int
+	outdir string
+}
+
 func Serve(ctx context.Context, a *zattoo.Account, outdir string, port int) error {
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 
-	srv := startHttpServer(ctx, a, outdir, port, wg)
+	s := &server{
+		a:   a,
+		hub: newHub(),
+
+		port:   port,
+		outdir: outdir,
+	}
+	srv := s.startHttpServer(ctx, wg)
 	// open(fmt.Sprintf("http://localhost:%d/", port))
 
+	// Wait for the context to be cancelled or done.
 	<-ctx.Done()
 	fmt.Println("Shutting down web server ...")
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	fmt.Println("Web server shut down.")
 	defer cancel()
-	return srv.Shutdown(shutdownCtx)
+	if err := srv.Shutdown(shutdownCtx); nil != err {
+		fmt.Fprintf(os.Stderr, "Failed to shut down web server: %v\n", err)
+	}
+	wg.Wait()
+	fmt.Println("Web server shut down.")
+	return nil
 }
 
-func startHttpServer(ctx context.Context, a *zattoo.Account, outdir string, port int, wg *sync.WaitGroup) *http.Server {
+func (s *server) startHttpServer(ctx context.Context, wg *sync.WaitGroup) *http.Server {
 	sub, err := fs.Sub(content, "client/dist")
 	if nil != err {
-		fmt.Printf("failed to get sub fs: %v\n", err)
+		fmt.Fprintf(os.Stderr, "failed to get sub fs: %v\n", err)
 	}
 
 	r := mux.NewRouter()
 	api := r.PathPrefix("/api/").Subrouter()
-	dlq := NewDownloadQueue(a)
-	go dlq.Run(ctx)
-	AddRecordingsApi(a, dlq, outdir, api)
-	AdQueueApi(api)
+	s.dlq = newDownloadQueue(s)
+
+	// Start both the goroutine that processes the download queue as well as
+	// the events websocket hub.
+	go s.dlq.Run(ctx)
+	go s.hub.run(ctx)
+
+	AddRecordingsApi(s, api)
+	AddQueuesApis(s, api)
 	r.PathPrefix("/").Handler(http.FileServer(http.FS(sub)))
 	r.Use(NewLogMiddleware().Func())
 
 	srv := &http.Server{
-		Addr:    fmt.Sprintf(":%d", port),
+		Addr:    fmt.Sprintf(":%d", s.port),
 		Handler: r,
 
 		ReadTimeout:  15 * time.Second,
@@ -59,9 +86,9 @@ func startHttpServer(ctx context.Context, a *zattoo.Account, outdir string, port
 	go func() {
 		defer wg.Done() // let main know we are done cleaning up
 
-		fmt.Printf("Starting web server on port %d ...\n", port)
+		fmt.Printf("Starting web server on port %d ...\n", s.port)
 		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
-			fmt.Printf("Failed to start web server: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Failed to start web server: %v\n", err)
 		}
 	}()
 
