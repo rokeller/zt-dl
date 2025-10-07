@@ -59,7 +59,6 @@ func ensureNoMoreMessagesFromWebSocket(t *testing.T, conn *websocket.Conn, d tim
 	if nil == err {
 		t.Error("expected read error, got nothing")
 	}
-
 }
 
 func blockingSleep(t *testing.T, d time.Duration) {
@@ -107,7 +106,7 @@ func Test_wsHub_run(t *testing.T) {
 		wantNumClients int
 	}{
 		{
-			name: "CancelStops",
+			name: "CancelStopsRunning",
 			ctxFactory: func(parent context.Context) (context.Context, context.CancelFunc) {
 				ctx, cancel := context.WithCancel(parent)
 				cancel()
@@ -119,6 +118,22 @@ func Test_wsHub_run(t *testing.T) {
 			produce: func(t *testing.T, hub *wsHub, cancel context.CancelFunc) {
 				hub.register <- &wsClient{}
 				blockingSleep(t, time.Millisecond)
+				cancel()
+			},
+			wantNumClients: 1,
+		},
+		{
+			name: "RegisterSendsBufferedEvents",
+			produce: func(t *testing.T, hub *wsHub, cancel context.CancelFunc) {
+				hub.lastQueueUpdated = &eventQueueUpdated{[]toDownload{{1, "a"}}}
+				hub.lastDownloadStarted = &eventDownloadStarted{"abc"}
+				c := &wsClient{outbox: make(chan event, 2)}
+				hub.register <- c
+				blockingSleep(t, time.Millisecond)
+				consumeEvents(t, c.outbox, []event{
+					{QueueUpdated: &eventQueueUpdated{Queue: []toDownload{{1, "a"}}}},
+					{DownloadStarted: &eventDownloadStarted{"abc"}},
+				})
 				cancel()
 			},
 			wantNumClients: 1,
@@ -149,6 +164,24 @@ func Test_wsHub_run(t *testing.T) {
 			produce: func(t *testing.T, hub *wsHub, cancel context.CancelFunc) {
 				hub.outbox <- event{}
 				cancel()
+			},
+		},
+		{
+			name: "OutboxEvent/BuffersEvents",
+			produce: func(t *testing.T, hub *wsHub, cancel context.CancelFunc) {
+				queueUpdated := &eventQueueUpdated{[]toDownload{{2, "b"}}}
+				downloadStarted := &eventDownloadStarted{"def"}
+				hub.outbox <- event{QueueUpdated: queueUpdated}
+				hub.outbox <- event{DownloadStarted: downloadStarted}
+				blockingSleep(t, time.Millisecond)
+				cancel()
+
+				if !reflect.DeepEqual(hub.lastQueueUpdated, queueUpdated) {
+					t.Errorf("lastQueueUpdated is %v, want %v", hub.lastQueueUpdated, queueUpdated)
+				}
+				if !reflect.DeepEqual(hub.lastDownloadStarted, downloadStarted) {
+					t.Errorf("lastDownloadStarted is %v, want %v", hub.lastQueueUpdated, downloadStarted)
+				}
 			},
 		},
 		{
