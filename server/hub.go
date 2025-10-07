@@ -23,6 +23,9 @@ type wsHub struct {
 	outbox     chan event
 	register   chan *wsClient
 	unregister chan *wsClient
+
+	lastQueueUpdated    *eventQueueUpdated
+	lastDownloadStarted *eventDownloadStarted
 }
 
 type wsClient struct {
@@ -53,6 +56,12 @@ func (h *wsHub) run(ctx context.Context) {
 		// new client subscribing to receive events.
 		case client := <-h.register:
 			h.clients[client] = struct{}{}
+			if nil != h.lastQueueUpdated {
+				client.outbox <- event{QueueUpdated: h.lastQueueUpdated}
+			}
+			if nil != h.lastDownloadStarted {
+				client.outbox <- event{DownloadStarted: h.lastDownloadStarted}
+			}
 
 		// client unsubscribing from events.
 		case client := <-h.unregister:
@@ -63,6 +72,13 @@ func (h *wsHub) run(ctx context.Context) {
 
 		// event received in hub's outbox to broadcast to clients
 		case event := <-h.outbox:
+			// Buffer some important events for new clients.
+			if nil != event.QueueUpdated {
+				h.lastQueueUpdated = event.QueueUpdated
+			} else if nil != event.DownloadStarted {
+				h.lastDownloadStarted = event.DownloadStarted
+			}
+
 			for client := range h.clients {
 				select {
 				case client.outbox <- event:
