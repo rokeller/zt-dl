@@ -40,6 +40,10 @@ function DownloadRecording({ recording }: React.PropsWithChildren<RecordingListI
                 enqueueSnackbar(
                     `Successfully enqueued download of "${filename}".`,
                     { variant: 'success', });
+            } else if (resp.status === 409) {
+                enqueueSnackbar(
+                    `Download of "${filename}" already in the queue.`,
+                    { variant: 'info', });
             } else {
                 enqueueSnackbar(
                     `Failed to enqueue download of "${filename}".`,

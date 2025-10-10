@@ -1,13 +1,11 @@
-import Badge from '@mui/material/Badge';
 import Box from '@mui/material/Box';
-import Fab from '@mui/material/Fab';
-import Icon from '@mui/material/Icon';
 import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
 import { useSnackbar } from 'notistack';
 import React from 'react';
 import type { DownloadStartedEvent, PendingDownload, ProgressUpdatedEvent, QueueEvent, StateUpdatedEvent } from '../models';
 import { DownloadProgress } from './DownloadProgress';
+import { QueueFabMenu } from './QueueFabMenu';
 
 export function DownloadQueue() {
     const { enqueueSnackbar } = useSnackbar();
@@ -78,11 +76,7 @@ export function DownloadQueue() {
 
     return (
         <Toolbar sx={{ gap: 2, }}>
-            <Fab size='small' color='default'>
-                <Badge badgeContent={pending?.length} color='secondary'>
-                    <Icon>format_list_bulleted</Icon>
-                </Badge>
-            </Fab>
+            <QueueFabMenu queue={pending} />
             {downloading ?
                 progress ?
                     <DownloadProgress filename={downloading.filename} progress={progress} /> :
