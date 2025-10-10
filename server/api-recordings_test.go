@@ -80,9 +80,10 @@ func Test_recordingsApiController_listAll(t *testing.T) {
 	}
 }
 
-func Test_recordingsApiController_enqueueDownloadDownload(t *testing.T) {
+func Test_recordingsApiController_enqueueDownload(t *testing.T) {
 	tests := []struct {
 		name               string
+		startQueue         []toDownload
 		recordingId        string
 		requestContentType string
 		requestBody        []byte
@@ -117,6 +118,21 @@ func Test_recordingsApiController_enqueueDownloadDownload(t *testing.T) {
 `),
 		},
 		{
+			name: "Status409/AlreadyInQueue",
+			startQueue: []toDownload{
+				{111, "blah"},
+			},
+			recordingId:        "111",
+			requestContentType: "application/x-www-form-urlencoded",
+			requestBody:        []byte("foo"),
+			wantStatus:         409,
+			wantBody: []byte(`{"code":"recording_already_queued"}
+`),
+			wantQueue: []toDownload{
+				{111, "blah"},
+			},
+		},
+		{
 			name:               "Status200",
 			recordingId:        "3456",
 			requestContentType: "application/x-www-form-urlencoded",
@@ -141,6 +157,9 @@ func Test_recordingsApiController_enqueueDownloadDownload(t *testing.T) {
 				outdir: "/tmp/test",
 			}
 			s.dlq = newDownloadQueue(s)
+			if nil != tt.startQueue {
+				s.dlq.q = tt.startQueue
+			}
 			c := recordingsApiController{s}
 			var reqBody io.Reader
 			if nil != tt.requestBody {
@@ -153,6 +172,71 @@ func Test_recordingsApiController_enqueueDownloadDownload(t *testing.T) {
 			r.Header.Add("content-type", tt.requestContentType)
 			w := httptest.NewRecorder()
 			c.enqueueDownload(w, r)
+
+			if w.Result().StatusCode != tt.wantStatus {
+				t.Errorf("response status got %d, want %d", w.Result().StatusCode, tt.wantStatus)
+			}
+			if w.Body.String() != string(tt.wantBody) {
+				t.Errorf("response body got %q, want %q", w.Body.String(), string(tt.wantBody))
+			}
+			if len(c.dlq.q) > 0 {
+				if !reflect.DeepEqual(c.dlq.q, tt.wantQueue) {
+					t.Errorf("got queue %v, want %v", c.dlq.q, tt.wantQueue)
+				}
+			} else if len(tt.wantQueue) > 0 {
+				t.Errorf("got queue %v, want %v", c.dlq.q, tt.wantQueue)
+			}
+
+			consumeEvents(t, s.hub.outbox, tt.wantEvents)
+			ensureNoMoreEvents(t, s.hub.outbox)
+		})
+	}
+}
+
+func Test_recordingsApiController_dequeueDownload(t *testing.T) {
+	tests := []struct {
+		name        string // description of this test case
+		startQueue  []toDownload
+		recordingId string
+		wantStatus  int
+		wantBody    []byte
+		wantQueue   []toDownload
+		wantEvents  []event
+	}{
+		{
+			name:        "Status400/MalformedRecordingId",
+			recordingId: "not-an-int",
+			wantStatus:  400,
+			wantBody: []byte(`{"code":"error_parsing_recordingId","err":"strconv.ParseInt: parsing \"not-an-int\": invalid syntax"}
+`),
+		},
+		{
+			name:        "Status200/EmptyQueueNoEvents",
+			recordingId: "1111",
+			wantStatus:  200,
+			wantBody: []byte(`{"result":true}
+`),
+			wantQueue:  []toDownload{},
+			wantEvents: []event{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &server{
+				hub:    newHub(),
+				outdir: "/tmp/test",
+			}
+			s.dlq = newDownloadQueue(s)
+			if nil != tt.startQueue {
+				s.dlq.q = tt.startQueue
+			}
+			c := recordingsApiController{s}
+			r, _ := http.NewRequest(http.MethodPost, "blah", nil)
+			r = mux.SetURLVars(r, map[string]string{
+				"recordingId": tt.recordingId,
+			})
+			w := httptest.NewRecorder()
+			c.dequeueDownload(w, r)
 
 			if w.Result().StatusCode != tt.wantStatus {
 				t.Errorf("response status got %d, want %d", w.Result().StatusCode, tt.wantStatus)

@@ -464,6 +464,49 @@ func Test_downloadQueue_downloadRecording_DownloadSucceeds(t *testing.T) {
 	ensureNoMoreEvents(t, s.hub.outbox)
 }
 
+func Test_downloadQueue_InQueue(t *testing.T) {
+	tests := []struct {
+		name        string // description of this test case
+		q           []toDownload
+		recordingId int64
+		want        bool
+	}{
+		{
+			name:        "EmptyQueue",
+			recordingId: 123,
+			want:        false,
+		},
+		{
+			name:        "NonEmptyQueue/ItemNotFound",
+			q:           []toDownload{{111, "blah"}},
+			recordingId: 456,
+			want:        false,
+		},
+		{
+			name:        "NonEmptyQueue/ItemFound",
+			q:           []toDownload{{111, "blah"}, {789, "blotz"}},
+			recordingId: 789,
+			want:        true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &server{
+				hub: newHub(),
+			}
+			q := &downloadQueue{
+				server: s,
+				mu:     sync.Mutex{},
+				q:      tt.q,
+			}
+			got := q.InQueue(tt.recordingId)
+			if got != tt.want {
+				t.Errorf("InQueue() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func Test_downloadQueue_Enqueue(t *testing.T) {
 	type args struct {
 		recordingId int64
@@ -508,6 +551,92 @@ func Test_downloadQueue_Enqueue(t *testing.T) {
 			consumeEvent(t, s.hub.outbox, event{QueueUpdated: &eventQueueUpdated{
 				Queue: append(tt.q, toDownload{tt.args.recordingId, tt.args.outputPath}),
 			}})
+			ensureNoMoreEvents(t, s.hub.outbox)
+		})
+	}
+}
+
+func Test_downloadQueue_Dequeue(t *testing.T) {
+	tests := []struct {
+		name         string // description of this test case
+		q            []toDownload
+		recordingId  int64
+		wantEvents   []event
+		wantQueueLen int
+	}{
+		{
+			name:        "EmptyQueue",
+			recordingId: 111,
+		},
+		{
+			name: "NonEmptyQueue/NoMatch",
+			q: []toDownload{
+				{111, "blah"},
+				{333, "blotz"},
+			},
+			recordingId:  222,
+			wantQueueLen: 2,
+		},
+		{
+			name: "NonEmptyQueue/FirstMatch",
+			q: []toDownload{
+				{333, "blotz"},
+				{111, "blah"},
+			},
+			recordingId: 333,
+			wantEvents: []event{
+				{QueueUpdated: &eventQueueUpdated{
+					Queue: []toDownload{{111, "blah"}},
+				}},
+			},
+			wantQueueLen: 1,
+		},
+		{
+			name: "NonEmptyQueue/MiddleMatch",
+			q: []toDownload{
+				{111, "blah"},
+				{444, "blimp"},
+				{333, "blotz"},
+			},
+			recordingId: 444,
+			wantEvents: []event{
+				{QueueUpdated: &eventQueueUpdated{
+					Queue: []toDownload{{111, "blah"}, {333, "blotz"}},
+				}},
+			},
+			wantQueueLen: 2,
+		},
+		{
+			name: "NonEmptyQueue/Last",
+			q: []toDownload{
+				{333, "blotz"},
+				{555, "blah"},
+			},
+			recordingId: 555,
+			wantEvents: []event{
+				{QueueUpdated: &eventQueueUpdated{
+					Queue: []toDownload{{333, "blotz"}},
+				}},
+			},
+			wantQueueLen: 1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &server{
+				hub: newHub(),
+			}
+			q := &downloadQueue{
+				server: s,
+				mu:     sync.Mutex{},
+				q:      tt.q,
+			}
+			q.Dequeue(tt.recordingId)
+			if len(q.q) != tt.wantQueueLen {
+				t.Errorf("queue length is %d, but want %d", len(q.q), tt.wantQueueLen)
+			}
+
+			consumeEvents(t, s.hub.outbox, tt.wantEvents)
 			ensureNoMoreEvents(t, s.hub.outbox)
 		})
 	}

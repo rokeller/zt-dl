@@ -126,11 +126,42 @@ func (q *downloadQueue) downloadRecording(r toDownload, done chan<- struct{}) {
 	}
 }
 
+func (q *downloadQueue) InQueue(recordingId int64) bool {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	for _, r := range q.q {
+		if r.RecordingId == recordingId {
+			return true
+		}
+	}
+	return false
+}
+
 func (q *downloadQueue) Enqueue(recordingId int64, outputPath string) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
 	q.q = append(q.q, toDownload{recordingId, outputPath})
+	q.hub.outbox <- event{QueueUpdated: &eventQueueUpdated{Queue: q.q}}
+}
+
+func (q *downloadQueue) Dequeue(recordingId int64) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	index := -1
+	for i, d := range q.q {
+		if d.RecordingId == recordingId {
+			index = i
+			break
+		}
+	}
+	if index < 0 {
+		return
+	}
+
+	q.q = append(q.q[:index], q.q[index+1:]...)
 	q.hub.outbox <- event{QueueUpdated: &eventQueueUpdated{Queue: q.q}}
 }
 

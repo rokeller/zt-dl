@@ -19,6 +19,7 @@ func AddRecordingsApi(s *server, api *mux.Router) {
 	c := recordingsApiController{s}
 	r.HandleFunc("/", c.listAll).Methods(http.MethodGet)
 	r.HandleFunc("/{recordingId}/enqueue", c.enqueueDownload).Methods(http.MethodPost)
+	r.HandleFunc("/{recordingId}/dequeue", c.dequeueDownload).Methods(http.MethodPost)
 }
 
 func (c recordingsApiController) listAll(w http.ResponseWriter, r *http.Request) {
@@ -55,6 +56,14 @@ func (c recordingsApiController) enqueueDownload(w http.ResponseWriter, r *http.
 		return
 	}
 
+	if c.dlq.InQueue(recordingId) {
+		w.WriteHeader(409)
+		j.Encode(map[string]any{
+			"code": "recording_already_queued",
+		})
+		return
+	}
+
 	if err := r.ParseForm(); nil != err {
 		w.WriteHeader(400)
 		j.Encode(map[string]any{
@@ -75,6 +84,31 @@ func (c recordingsApiController) enqueueDownload(w http.ResponseWriter, r *http.
 
 	outputPath := path.Join(c.outdir, filename)
 	c.dlq.Enqueue(recordingId, outputPath)
+
+	w.WriteHeader(200)
+	j.Encode(map[string]any{
+		"result": true,
+	})
+}
+
+func (c recordingsApiController) dequeueDownload(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	recordingIdStr := vars["recordingId"]
+
+	w.Header().Add("content-type", "application/json")
+	j := json.NewEncoder(w)
+
+	recordingId, err := strconv.ParseInt(recordingIdStr, 10, 64)
+	if nil != err {
+		w.WriteHeader(400)
+		j.Encode(map[string]any{
+			"code": "error_parsing_recordingId",
+			"err":  err.Error(),
+		})
+		return
+	}
+
+	c.dlq.Dequeue(recordingId)
 
 	w.WriteHeader(200)
 	j.Encode(map[string]any{
