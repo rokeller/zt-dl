@@ -7,6 +7,13 @@ updates:
       time: "05:32"
       timezone: Europe/Zurich
 
+  - package-ecosystem: npm
+    directory: /server/client/
+    schedule:
+      interval: daily
+      time: "05:32"
+      timezone: Europe/Zurich
+
   - package-ecosystem: github-actions
     directory: /
     schedule:
