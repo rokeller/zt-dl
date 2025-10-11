@@ -81,7 +81,6 @@ func (s *server) startHttpServer(ctx context.Context, wg *sync.WaitGroup) *http.
 	AddRecordingsApi(s, api)
 	AddQueuesApis(s, api)
 	r.PathPrefix("/").Handler(http.FileServer(http.FS(sub)))
-	r.Use(NewLogMiddleware().Func())
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", s.port),
