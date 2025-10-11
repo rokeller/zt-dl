@@ -29,6 +29,22 @@ jobs:
       with:
         go-version-file: 'go.mod'
 
+    - name: Add shims for ffmpeg tools
+      run: |
+        echo "PATH=$PATH"
+
+        cat <<EOF > ffmpeg
+        #!/bin/bash
+        echo ffmpeg
+        EOF
+        chmod +x ffmpeg
+
+        cat <<EOF > ffprobe
+        #!/bin/bash
+        echo ffprobe
+        EOF
+        chmod +x ffprobe
+
     - name: Build Web UI
       run: |
         pnpm -C server/client/ install
