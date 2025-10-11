@@ -1,3 +1,4 @@
 #!/bin/bash
 
 echo 'ffprobe shim'
+exit 1
