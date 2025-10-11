@@ -31,19 +31,8 @@ jobs:
 
     - name: Add shims for ffmpeg tools
       run: |
-        echo "PATH=$PATH"
-
-        cat <<EOF > ffmpeg
-        #!/bin/bash
-        echo ffmpeg
-        EOF
-        chmod +x ffmpeg
-
-        cat <<EOF > ffprobe
-        #!/bin/bash
-        echo ffprobe
-        EOF
-        chmod +x ffprobe
+        echo "$GITHUB_WORKSPACE/shims" >> $GITHUB_PATH
+        echo "Updated PATH=$PATH"
 
     - name: Build Web UI
       run: |
