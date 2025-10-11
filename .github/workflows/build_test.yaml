@@ -29,7 +29,7 @@ jobs:
       with:
         go-version-file: 'go.mod'
 
-    - name: Add shims for ffmpeg tools
+    - name: Add shims for ffmpeg tools used for testing
       run: |
         echo "$GITHUB_WORKSPACE/shims" >> $GITHUB_PATH
         echo "Updated PATH=$PATH"
