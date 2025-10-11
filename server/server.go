@@ -24,11 +24,17 @@ type server struct {
 	dlq *downloadQueue
 	hub *wsHub
 
-	port   int
+	port   uint16
 	outdir string
 }
 
-func Serve(ctx context.Context, a *zattoo.Account, outdir string, port int) error {
+func Serve(
+	ctx context.Context,
+	a *zattoo.Account,
+	outdir string,
+	port uint16,
+	openWebUI bool,
+) error {
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 
@@ -40,7 +46,9 @@ func Serve(ctx context.Context, a *zattoo.Account, outdir string, port int) erro
 		outdir: outdir,
 	}
 	srv := s.startHttpServer(ctx, wg)
-	// open(fmt.Sprintf("http://localhost:%d/", port))
+	if openWebUI {
+		open(ctx, fmt.Sprintf("http://localhost:%d/", port))
+	}
 
 	// Wait for the context to be cancelled or done.
 	<-ctx.Done()

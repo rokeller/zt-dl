@@ -14,12 +14,9 @@ import (
 )
 
 func TestServe(t *testing.T) {
-	type args struct {
-		port int
-	}
 	tests := []struct {
 		name    string
-		port    int
+		port    uint16
 		wantErr bool
 	}{
 		{
@@ -38,7 +35,7 @@ func TestServe(t *testing.T) {
 			if nil != err {
 				t.Fatalf("failed to get temporary dir: %v", err)
 			}
-			if err := Serve(ctx, a, outdir, tt.port); (nil != err) != tt.wantErr {
+			if err := Serve(ctx, a, outdir, tt.port, false); (nil != err) != tt.wantErr {
 				t.Errorf("Serve() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
