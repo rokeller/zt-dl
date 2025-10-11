@@ -17,8 +17,12 @@ jobs:
       with:
         go-version-file: 'go.mod'
 
-    - name: Build
+    - name: Build Web UI
+      run: |
+        pnpm -C server/client/ build
+
+    - name: Build CLI
       run: go build
     
-    - name: Test
+    - name: Test CLI
       run: go test ./...
