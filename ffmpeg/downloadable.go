@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"time"
+
+	e "github.com/rokeller/zt-dl/exec"
 )
 
 type downloadable struct {
@@ -24,7 +26,7 @@ func NewDownloadable(inputUrl, outputPath string) downloadable {
 	}
 }
 
-func (d *downloadable) Download(ctx context.Context) error {
+func (d *downloadable) Download(ctx context.Context, progress DownloadProgressHandler) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -44,7 +46,7 @@ func (d *downloadable) Download(ctx context.Context) error {
 		video.Width, video.Height, video.BitRate, video.AvgFrameRate, video.Index)
 	fmt.Printf("Duration: %s\n", d.format.Duration)
 
-	ffmpegCmd := cmdFactory(ctx, "ffmpeg",
+	ffmpegCmd := e.CmdFactory(ctx, "ffmpeg",
 		"-protocol_whitelist", protocolWhiteList,
 		"-i", d.inputUrl,
 		"-map", fmt.Sprintf("0:%d", audio.Index),
@@ -57,28 +59,31 @@ func (d *downloadable) Download(ctx context.Context) error {
 		return fmt.Errorf("failed to redirect stderr to pipe: %w", err)
 	}
 
+	if nil == progress {
+		progress = consoleProgressHandler{
+			target:     os.Stdout,
+			outputPath: d.outputPath,
+		}
+	}
+
 	tracker := downloadProgressTracker{
-		outType: "stderr",
+		handler: progress,
 		source:  stderr,
-		target:  os.Stdout,
 
 		start:        time.Now().UTC(),
 		durationMsec: durationMsec,
 	}
-	go tracker.showDownloadProgress()
+	go tracker.trackProgress()
 
 	// Now start the ffmpeg process ...
-	fmt.Println("Starting download ...")
+	progress.Start()
 	if err := ffmpegCmd.Start(); nil != err {
 		return fmt.Errorf("failed to start ffmpeg: %w", err)
 	}
 
-	if err := ffmpegCmd.Wait(); err != nil {
-		return fmt.Errorf("failed to wait for ffmpeg to finish: %w", err)
+	if err := ffmpegCmd.Wait(); nil != err {
+		return fmt.Errorf("ffmpeg failed: %w", err)
 	}
-
-	fmt.Println("Finished download.")
-	fmt.Printf("Recording written to %q.\n", d.outputPath)
-
+	progress.Finished()
 	return nil
 }

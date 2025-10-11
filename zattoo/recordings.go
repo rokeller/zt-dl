@@ -20,6 +20,8 @@ type recording struct {
 	Id           int64     `json:"id"`
 	ProgramId    int64     `json:"program_id"`
 	ChannelId    string    `json:"cid"`
+	ImageUrl     string    `json:"image_url"`
+	Partial      bool      `json:"partial"`
 	Level        string    `json:"level"`
 	Title        string    `json:"title"`
 	EpisodeTitle string    `json:"episode_title"`

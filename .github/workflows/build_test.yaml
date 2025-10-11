@@ -12,13 +12,36 @@ jobs:
     steps:
     - uses: actions/checkout@v5
 
+    - uses: pnpm/action-setup@v4
+      with:
+        version: 10
+
+    - name: Set up Node
+      uses: actions/setup-node@v5
+      with:
+        node-version: 22.x
+        cache: pnpm
+        cache-dependency-path: |
+          server/client/pnpm-lock.yaml
+
     - name: Set up Go
       uses: actions/setup-go@v6
       with:
         go-version-file: 'go.mod'
 
-    - name: Build
+    - name: Add shims for ffmpeg tools used for testing
+      run: |
+        echo "$GITHUB_WORKSPACE/shims" >> $GITHUB_PATH
+        echo "Updated PATH=$PATH"
+
+    - name: Build Web UI
+      run: |
+        pnpm -C server/client/ install
+        pnpm -C server/client/ lint
+        pnpm -C server/client/ build
+
+    - name: Build CLI
       run: go build
     
-    - name: Test
+    - name: Test CLI
       run: go test ./...

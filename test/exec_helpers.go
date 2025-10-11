@@ -46,7 +46,7 @@ func TestCommandContext(t *testing.T, testName string, ctx context.Context, name
 }
 
 func AssertArgs(expectedArgs ...string) {
-	args := os.Args[TestCallArgLen:]
+	args := GetArgs()
 	if len(args) != len(expectedArgs) {
 		os.Exit(-1)
 	}
@@ -55,4 +55,8 @@ func AssertArgs(expectedArgs ...string) {
 			os.Exit(1 + i)
 		}
 	}
+}
+
+func GetArgs() []string {
+	return os.Args[TestCallArgLen:]
 }

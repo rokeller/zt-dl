@@ -4,23 +4,58 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"log"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 )
 
+type DownloadProgress struct {
+	RelCompleted float32       `json:"completed"`
+	Elapsed      time.Duration `json:"elapsed"`
+	Remaining    time.Duration `json:"remaining"`
+}
+
+type DownloadProgressHandler interface {
+	Start()
+	UpdateProgress(p DownloadProgress)
+	Error(err error)
+	Finished()
+}
+
+type consoleProgressHandler struct {
+	target     io.Writer
+	outputPath string
+}
+
+func (h consoleProgressHandler) Start() {
+	fmt.Println("Starting download ...")
+}
+
+func (h consoleProgressHandler) UpdateProgress(p DownloadProgress) {
+	fmt.Fprintf(h.target,
+		"Download progress: %5.1f%% | Elapsed: %10s | Remaining: %10s\r",
+		p.RelCompleted*100, p.Elapsed.Truncate(time.Second), p.Remaining)
+}
+
+func (h consoleProgressHandler) Error(err error) {
+}
+
+func (h consoleProgressHandler) Finished() {
+	fmt.Println("Finished download.")
+	fmt.Printf("Recording written to %q.\n", h.outputPath)
+	fmt.Println()
+}
+
 type downloadProgressTracker struct {
-	outType string
+	handler DownloadProgressHandler
 	source  io.Reader
-	target  io.Writer
 
 	start        time.Time
 	durationMsec int64
 }
 
-func (t *downloadProgressTracker) showDownloadProgress() {
+func (t *downloadProgressTracker) trackProgress() {
 	r := regexp.MustCompile(`time=(\d{2}):(\d{2}):(\d{2}).(\d{1,3})`)
 	scanner := bufio.NewScanner(t.source)
 
@@ -40,26 +75,26 @@ func (t *downloadProgressTracker) showDownloadProgress() {
 			}
 			relPos := float32(posMsec) / float32(t.durationMsec)
 			elapsed := time.Now().UTC().Sub(t.start)
+			remaining := time.Hour * 24 * 999
+
 			if relPos > 0 {
 				estimatedTotal := int64(float32(elapsed.Milliseconds()) / relPos)
-				remaining :=
+				remaining =
 					(time.Millisecond * time.Duration(estimatedTotal-elapsed.Milliseconds())).
 						Truncate(time.Second)
-				fmt.Fprintf(t.target,
-					"Download progress: %5.1f%% | Elapsed: %10s | Remaining: %10s\r",
-					relPos*100, elapsed.Truncate(time.Second), remaining)
-			} else {
-				fmt.Fprintf(t.target,
-					"Download progress: %5.1f%% | Elapsed: %10s\r",
-					relPos*100, elapsed.Truncate(time.Second))
 			}
+
+			t.handler.UpdateProgress(DownloadProgress{
+				RelCompleted: relPos,
+				Elapsed:      elapsed,
+				Remaining:    remaining,
+			})
 		}
 	}
 
-	if err := scanner.Err(); err != nil {
-		log.Fatal(err)
+	if err := scanner.Err(); nil != err {
+		t.handler.Error(err)
 	}
-	fmt.Fprintln(t.target)
 }
 
 func parseTimeMsec(strH, strM, strS, strMS string) (int64, error) {

@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	e "github.com/rokeller/zt-dl/exec"
 )
 
 type probeResult struct {
@@ -55,7 +57,7 @@ func (d *downloadable) DetectStreams(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	ffprobeCmd := cmdFactory(ctx, "ffprobe",
+	ffprobeCmd := e.CmdFactory(ctx, "ffprobe",
 		"-protocol_whitelist", protocolWhiteList,
 		"-print_format", "json",
 		"-show_format",

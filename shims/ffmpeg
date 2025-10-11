@@ -1,0 +1,4 @@
+#!/bin/bash
+
+echo 'ffmpeg shim'
+exit 1
