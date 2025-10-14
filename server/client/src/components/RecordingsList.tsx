@@ -22,10 +22,6 @@ export function RecordingsList() {
     const [recordings, setRecordings] = React.useState<Recording[]>();
     const [fetchError, setFetchError] = React.useState<string>();
 
-    React.useEffect(() => {
-        loadRecordings();
-    }, []);
-
     async function loadRecordings() {
         try {
             const resp = await fetch('/api/recordings/');
@@ -40,6 +36,10 @@ export function RecordingsList() {
             setFetchError(String(e));
         }
     }
+
+    React.useEffect(() => {
+        loadRecordings();
+    }, []);
 
     let lastYear: number | undefined;
     function renderConditionalYearDivider(r: Recording) {
