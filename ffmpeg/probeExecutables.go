@@ -1,22 +1,23 @@
 package ffmpeg
 
 import (
-	"fmt"
-	"os"
 	"os/exec"
 )
 
-func ExecutablesPresent() bool {
-	return probeExecutable("ffmpeg") && probeExecutable("ffprobe")
+func ExecutablesPresent() error {
+	if err := probeExecutable("ffmpeg"); nil != err {
+		return err
+	}
+	if err := probeExecutable("ffprobe"); nil != err {
+		return err
+	}
+	return nil
 }
 
-func probeExecutable(name string) bool {
-	path, err := exec.LookPath(name)
+func probeExecutable(name string) error {
+	_, err := exec.LookPath(name)
 	if nil != err {
-		fmt.Fprintf(os.Stderr, "%s not found: %v\n", name, err)
-		return false
+		return err
 	}
-
-	fmt.Printf("%s found at %q.\n", name, path)
-	return true
+	return nil
 }
