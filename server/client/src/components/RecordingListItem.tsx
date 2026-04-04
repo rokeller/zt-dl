@@ -21,13 +21,21 @@ interface RecordingListItemProps {
     recording: Recording;
 }
 
+const filenameDisallowed = /\s*([:\\/])\s*/gi;
+
+function normalizeFilename(filename: string): string {
+    return filename.replace(filenameDisallowed, ' - ');
+}
+
 function DownloadRecording({ recording }: React.PropsWithChildren<RecordingListItemProps>) {
     const { enqueueSnackbar } = useSnackbar();
 
     async function startDownload() {
-        const filename = recording.episode_title && recording.episode_title.length > 0 ?
-            `${recording.title} - ${recording.episode_title}.mp4` :
-            `${recording.title}.mp4`;
+        const filename = normalizeFilename(
+            recording.episode_title && recording.episode_title.length > 0 ?
+                `${recording.title} - ${recording.episode_title}.mp4` :
+                `${recording.title}.mp4`
+        );
 
         try {
             const resp = await fetch('/api/recordings/' + recording.id + '/enqueue', {
