@@ -21,6 +21,7 @@ for downloading`,
 }
 
 func init() {
+	addEmailAndDomainFlags(listRecordingsCmd)
 	rootCmd.AddCommand(listRecordingsCmd)
 }
 
