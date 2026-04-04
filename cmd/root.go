@@ -28,8 +28,5 @@ func Execute(ctx context.Context) {
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringP(string(Email), "e", "", "Email address of your Zattoo account.")
-	rootCmd.MarkPersistentFlagRequired(string(Email))
-
-	rootCmd.PersistentFlags().StringP(string(Domain), "d", "zattoo.com", "Domain of your Zattoo subscription.")
+	addEmailAndDomainFlags(rootCmd)
 }

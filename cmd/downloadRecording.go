@@ -21,6 +21,7 @@ This requires [1mffmpeg[0m and [1mffprobe[0m to be in the PATH.`,
 }
 
 func init() {
+	addEmailAndDomainFlags(downloadRecordingCmd)
 	rootCmd.AddCommand(downloadRecordingCmd)
 
 	downloadRecordingCmd.Flags().StringP("out", "o", "", "Name of the output file")

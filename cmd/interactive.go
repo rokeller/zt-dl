@@ -40,6 +40,7 @@ func runInteractiveCmd(cmd *cobra.Command, args []string) error {
 }
 
 func init() {
+	addEmailAndDomainFlags(interactiveCmd)
 	rootCmd.AddCommand(interactiveCmd)
 
 	cwd, err := os.Getwd()
