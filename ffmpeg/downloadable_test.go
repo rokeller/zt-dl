@@ -48,7 +48,7 @@ func Test_downloadable_Download(t *testing.T) {
 		{
 			name:     "No Streams",
 			d:        downloadable{},
-			selector: NewBestStreamsSelectorWithSubtitles(),
+			selector: NewBestStreamsSelector(),
 			wantErr:  true,
 		},
 		{
@@ -58,7 +58,7 @@ func Test_downloadable_Download(t *testing.T) {
 					&SubtitleStream{Stream: Stream{Index: 0}, Language: "tst"},
 				},
 			},
-			selector: NewBestStreamsSelectorWithSubtitles(),
+			selector: NewBestStreamsSelector(),
 			wantErr:  true,
 		},
 		{
@@ -68,7 +68,7 @@ func Test_downloadable_Download(t *testing.T) {
 					&AudioStream{Stream: Stream{Index: 1}, SampleRate: 12000},
 				},
 			},
-			selector: NewBestStreamsSelectorWithSubtitles(),
+			selector: NewBestStreamsSelector(),
 			wantErr:  true,
 		},
 	}
@@ -126,7 +126,7 @@ func Test_downloadable_Download_ffmpeg(t *testing.T) {
 			BitRate:      12345,
 		},
 	}
-	selector := NewBestStreamsSelectorWithSubtitles()
+	selector := NewBestStreamsSelector()
 	err := d.Download(t.Context(), selector, nil)
 	if nil != err {
 		t.Errorf("downloadable.Download() got error %v, want nil", err)

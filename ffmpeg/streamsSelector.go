@@ -4,14 +4,10 @@ type StreamsSelector interface {
 	SelectStreams(streams []SourceStream) ([]SourceStream, error)
 }
 
-type bestStreamsSelector struct {
-	languagePreference []string
-}
+type bestStreamsSelector struct{}
 
-var _ StreamsSelector = bestStreamsSelector{}
-
-func NewBestStreamsSelectorWithSubtitles(languagePreference ...string) bestStreamsSelector {
-	return bestStreamsSelector{languagePreference: languagePreference}
+func NewBestStreamsSelector() StreamsSelector {
+	return bestStreamsSelector{}
 }
 
 // SelectStreams implements [StreamsSelector].
@@ -24,14 +20,8 @@ func (b bestStreamsSelector) SelectStreams(streams []SourceStream) ([]SourceStre
 	if vs := bestVideoStream(FilterStreams(streams, IsVideoStream)); nil != vs {
 		res = append(res, vs)
 	}
-
 	for _, s := range FilterStreams(streams, IsSubtitleStream) {
-		sts := s.(*SubtitleStream)
-		for _, lang := range b.languagePreference {
-			if lang == sts.Language {
-				res = append(res, sts)
-			}
-		}
+		res = append(res, s)
 	}
 	return res, nil
 }

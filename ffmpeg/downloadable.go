@@ -48,7 +48,16 @@ func (d *downloadable) Download(ctx context.Context, selector StreamsSelector, p
 	fmt.Printf("Duration: %s\n", d.format.Duration)
 	fmt.Println("Selected stream(s) for download:")
 	for i, s := range streams {
-		fmt.Printf("    %0d: %s\n", i+1, s.String())
+		t := "Unknown"
+		switch s.(type) {
+		case *AudioStream:
+			t = "Audio"
+		case *SubtitleStream:
+			t = "Subtitle"
+		case *VideoStream:
+			t = "Video"
+		}
+		fmt.Printf("    [%0d] %s: %s\n", i+1, t, s.String())
 		args = append(args, "-map", fmt.Sprintf("0:%d", s.Index()))
 	}
 
