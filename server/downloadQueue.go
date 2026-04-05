@@ -63,10 +63,10 @@ func (q *downloadQueue) checkForDownloads() (bool, chan struct{}) {
 		dl, remaining := q.q[0], q.q[1:]
 		q.q = remaining
 
-		q.hub.outbox <- event{
+		q.hub.outbox <- serverEvent{
 			DownloadStarted: &eventDownloadStarted{Filename: dl.OutputPath},
 		}
-		q.hub.outbox <- event{
+		q.hub.outbox <- serverEvent{
 			QueueUpdated: &eventQueueUpdated{Queue: q.q},
 		}
 
@@ -82,12 +82,12 @@ func (q *downloadQueue) checkForDownloads() (bool, chan struct{}) {
 func (q *downloadQueue) downloadRecording(r toDownload, done chan<- struct{}) {
 	defer func() { done <- struct{}{} }()
 
-	q.hub.outbox <- event{
+	q.hub.outbox <- serverEvent{
 		StateUpdated: &eventStateUpdated{State: "get_stream_url", Reason: "getting recording stream URL ..."},
 	}
 	url, err := q.a.GetRecordingStreamUrl(r.RecordingId)
 	if nil != err {
-		q.hub.outbox <- event{
+		q.hub.outbox <- serverEvent{
 			DownloadErrored: &eventDownloadErrored{Filename: r.OutputPath, Reason: err.Error()},
 		}
 		fmt.Fprintf(os.Stderr, "Failed to get recording stream: %v\n", err)
@@ -95,7 +95,7 @@ func (q *downloadQueue) downloadRecording(r toDownload, done chan<- struct{}) {
 	}
 
 	d := ffmpeg.NewDownloadable(url, r.OutputPath)
-	q.hub.outbox <- event{
+	q.hub.outbox <- serverEvent{
 		StateUpdated: &eventStateUpdated{State: "detect_streams", Reason: "detecting recording audio and video streams ..."},
 	}
 	fmt.Println("Detecting streams ...")
@@ -103,14 +103,14 @@ func (q *downloadQueue) downloadRecording(r toDownload, done chan<- struct{}) {
 	defer cancel()
 
 	if err := d.DetectStreams(ctx); nil != err {
-		q.hub.outbox <- event{
+		q.hub.outbox <- serverEvent{
 			DownloadErrored: &eventDownloadErrored{Filename: r.OutputPath, Reason: err.Error()},
 		}
 		fmt.Fprintf(os.Stderr, "Failed to detect recording streams: %v\n", err)
 		return
 	}
 
-	q.hub.outbox <- event{
+	q.hub.outbox <- serverEvent{
 		StateUpdated: &eventStateUpdated{State: "download", Reason: "starting download ..."},
 	}
 	if err := d.Download(context.Background(), &broadcastDownloadProgressHandler{
@@ -118,8 +118,7 @@ func (q *downloadQueue) downloadRecording(r toDownload, done chan<- struct{}) {
 		eventQueueUpdated: eventQueueUpdated{
 			Queue: q.q,
 		},
-	}); nil != err {
-		q.hub.outbox <- event{
+		q.hub.outbox <- serverEvent{
 			DownloadErrored: &eventDownloadErrored{Filename: r.OutputPath, Reason: err.Error()},
 		}
 		fmt.Fprintf(os.Stderr, "Failed to download recording: %v\n", err)
@@ -143,7 +142,7 @@ func (q *downloadQueue) Enqueue(recordingId int64, outputPath string) {
 	defer q.mu.Unlock()
 
 	q.q = append(q.q, toDownload{recordingId, outputPath})
-	q.hub.outbox <- event{QueueUpdated: &eventQueueUpdated{Queue: q.q}}
+	q.hub.outbox <- serverEvent{QueueUpdated: &eventQueueUpdated{Queue: q.q}}
 }
 
 func (q *downloadQueue) Dequeue(recordingId int64) {
@@ -162,7 +161,7 @@ func (q *downloadQueue) Dequeue(recordingId int64) {
 	}
 
 	q.q = append(q.q[:index], q.q[index+1:]...)
-	q.hub.outbox <- event{QueueUpdated: &eventQueueUpdated{Queue: q.q}}
+	q.hub.outbox <- serverEvent{QueueUpdated: &eventQueueUpdated{Queue: q.q}}
 }
 
 type broadcastDownloadProgressHandler struct {
@@ -172,7 +171,7 @@ type broadcastDownloadProgressHandler struct {
 
 // Start implements ffmpeg.DownloadProgressHandler.
 func (b *broadcastDownloadProgressHandler) Start() {
-	fmt.Println("Queued download started")
+	fmt.Println("Queued download started.")
 }
 
 // Error implements ffmpeg.DownloadProgressHandler.
@@ -182,14 +181,14 @@ func (b *broadcastDownloadProgressHandler) Error(err error) {
 
 // Finished implements ffmpeg.DownloadProgressHandler.
 func (b *broadcastDownloadProgressHandler) Finished() {
-	fmt.Println("Queued download finished")
+	fmt.Println("Queued download finished.")
 }
 
 // UpdateProgress implements ffmpeg.DownloadProgressHandler.
 func (b *broadcastDownloadProgressHandler) UpdateProgress(p ffmpeg.DownloadProgress) {
 	fmt.Printf("Queued download progress: %5.1f%% | Elapsed: %10s | Remaining: %10s\r",
 		p.RelCompleted*100, p.Elapsed.Truncate(time.Second), p.Remaining)
-	b.hub.outbox <- event{
+	b.hub.outbox <- serverEvent{
 		ProgressUpdated: &eventProgressUpdated{
 			RelCompleted: p.RelCompleted,
 			Elapsed:      p.Elapsed.Truncate(time.Second).String(),

@@ -90,7 +90,7 @@ func Test_recordingsApiController_enqueueDownload(t *testing.T) {
 		wantStatus         int
 		wantBody           []byte
 		wantQueue          []toDownload
-		wantEvents         []event
+		wantEvents         []serverEvent
 	}{
 		{
 			name:        "Status400/MalformedRecordingId",
@@ -143,7 +143,7 @@ func Test_recordingsApiController_enqueueDownload(t *testing.T) {
 			wantQueue: []toDownload{
 				{RecordingId: 3456, OutputPath: "/tmp/test/my-file.mp4"},
 			},
-			wantEvents: []event{
+			wantEvents: []serverEvent{
 				{QueueUpdated: &eventQueueUpdated{Queue: []toDownload{
 					{RecordingId: 3456, OutputPath: "/tmp/test/my-file.mp4"},
 				}}},
@@ -201,7 +201,7 @@ func Test_recordingsApiController_dequeueDownload(t *testing.T) {
 		wantStatus  int
 		wantBody    []byte
 		wantQueue   []toDownload
-		wantEvents  []event
+		wantEvents  []serverEvent
 	}{
 		{
 			name:        "Status400/MalformedRecordingId",
@@ -217,7 +217,7 @@ func Test_recordingsApiController_dequeueDownload(t *testing.T) {
 			wantBody: []byte(`{"result":true}
 `),
 			wantQueue:  []toDownload{},
-			wantEvents: []event{},
+			wantEvents: []serverEvent{},
 		},
 	}
 	for _, tt := range tests {

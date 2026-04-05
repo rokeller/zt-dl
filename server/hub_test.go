@@ -12,16 +12,30 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-func consumeEvents(t *testing.T, events <-chan event, wantEvents []event) {
+type countingClientEventHandler struct {
+	counter   *int
+	increment int
+}
+
+var _ clientEventHandler = countingClientEventHandler{}
+
+// Handle implements [clientEventHandler].
+func (c countingClientEventHandler) Handle(e sourcedClientEvent) {
+	if nil != c.counter {
+		*c.counter += c.increment
+	}
+}
+
+func consumeServerEvents(t *testing.T, events <-chan serverEvent, wantEvents []serverEvent) {
 	t.Helper()
 	if nil != wantEvents {
 		for _, want := range wantEvents {
-			consumeEvent(t, events, want)
+			consumeServerEvent(t, events, want)
 		}
 	}
 }
 
-func consumeEvent(t *testing.T, events <-chan event, want event) {
+func consumeServerEvent(t *testing.T, events <-chan serverEvent, want serverEvent) {
 	t.Helper()
 	got := <-events
 	if !reflect.DeepEqual(got, want) {
@@ -29,7 +43,7 @@ func consumeEvent(t *testing.T, events <-chan event, want event) {
 	}
 }
 
-func ensureNoMoreEvents(t *testing.T, events <-chan event) {
+func ensureNoMoreServerEvents(t *testing.T, events <-chan serverEvent) {
 	t.Helper()
 	if len(events) != 0 {
 		t.Errorf("events queue has %d events, want 0", len(events))
@@ -52,7 +66,7 @@ func consumeTextMessageFromWebSocket(t *testing.T, conn *websocket.Conn, prefix 
 	}
 }
 
-func ensureNoMoreMessagesFromWebSocket(t *testing.T, conn *websocket.Conn, d time.Duration) {
+func ensureNoMoreMessagesFromWebSocket(t *testing.T, conn *websocket.Conn) {
 	t.Helper()
 	conn.SetReadDeadline(time.Now().Add(time.Millisecond))
 	_, _, err := conn.NextReader()
@@ -81,7 +95,7 @@ func Test_newHub(t *testing.T) {
 					ReadBufferSize:  1024,
 					WriteBufferSize: 1024,
 				},
-				outbox:     make(chan event, 32),
+				outbox:     make(chan serverEvent, 32),
 				register:   make(chan *wsClient, 8),
 				unregister: make(chan *wsClient, 8),
 				clients:    make(map[*wsClient]struct{}),
@@ -127,10 +141,10 @@ func Test_wsHub_run(t *testing.T) {
 			produce: func(t *testing.T, hub *wsHub, cancel context.CancelFunc) {
 				hub.lastQueueUpdated = &eventQueueUpdated{[]toDownload{{1, "a"}}}
 				hub.lastDownloadStarted = &eventDownloadStarted{"abc"}
-				c := &wsClient{outbox: make(chan event, 2)}
+				c := &wsClient{outbox: make(chan serverEvent, 2)}
 				hub.register <- c
 				blockingSleep(t, time.Millisecond)
-				consumeEvents(t, c.outbox, []event{
+				consumeServerEvents(t, c.outbox, []serverEvent{
 					{QueueUpdated: &eventQueueUpdated{Queue: []toDownload{{1, "a"}}}},
 					{DownloadStarted: &eventDownloadStarted{"abc"}},
 				})
@@ -150,7 +164,7 @@ func Test_wsHub_run(t *testing.T) {
 		{
 			name: "RegisterFollowedByUnregisterCleansUpProperly",
 			produce: func(t *testing.T, hub *wsHub, cancel context.CancelFunc) {
-				c := &wsClient{outbox: make(chan event)}
+				c := &wsClient{outbox: make(chan serverEvent)}
 				hub.register <- c
 				blockingSleep(t, time.Millisecond)
 				hub.unregister <- c
@@ -162,7 +176,7 @@ func Test_wsHub_run(t *testing.T) {
 		{
 			name: "OutboxEvent/NoopForEmptyClients",
 			produce: func(t *testing.T, hub *wsHub, cancel context.CancelFunc) {
-				hub.outbox <- event{}
+				hub.outbox <- serverEvent{}
 				cancel()
 			},
 		},
@@ -171,8 +185,8 @@ func Test_wsHub_run(t *testing.T) {
 			produce: func(t *testing.T, hub *wsHub, cancel context.CancelFunc) {
 				queueUpdated := &eventQueueUpdated{[]toDownload{{2, "b"}}}
 				downloadStarted := &eventDownloadStarted{"def"}
-				hub.outbox <- event{QueueUpdated: queueUpdated}
-				hub.outbox <- event{DownloadStarted: downloadStarted}
+				hub.outbox <- serverEvent{QueueUpdated: queueUpdated}
+				hub.outbox <- serverEvent{DownloadStarted: downloadStarted}
 				blockingSleep(t, time.Millisecond)
 				cancel()
 
@@ -187,10 +201,10 @@ func Test_wsHub_run(t *testing.T) {
 		{
 			name: "OutboxEvent/ClosesAndDeletesClientOnFullOutbox",
 			produce: func(t *testing.T, hub *wsHub, cancel context.CancelFunc) {
-				c := &wsClient{outbox: make(chan event)}
+				c := &wsClient{outbox: make(chan serverEvent)}
 				hub.register <- c
 				blockingSleep(t, time.Millisecond)
-				hub.outbox <- event{}
+				hub.outbox <- serverEvent{}
 				blockingSleep(t, time.Millisecond)
 				cancel()
 			},
@@ -199,8 +213,8 @@ func Test_wsHub_run(t *testing.T) {
 		{
 			name: "OutboxEvent/ForwardsEventToClient",
 			produce: func(t *testing.T, hub *wsHub, cancel context.CancelFunc) {
-				c := &wsClient{outbox: make(chan event, 1)}
-				wantE := event{StateUpdated: &eventStateUpdated{State: "test", Reason: "unit test"}}
+				c := &wsClient{outbox: make(chan serverEvent, 1)}
+				wantE := serverEvent{StateUpdated: &eventStateUpdated{State: "test", Reason: "unit test"}}
 				hub.register <- c
 				blockingSleep(t, time.Millisecond)
 				hub.outbox <- wantE
@@ -212,6 +226,33 @@ func Test_wsHub_run(t *testing.T) {
 				cancel()
 			},
 			wantNumClients: 1,
+		},
+		{
+			name: "InboxEvent/NoHandlers",
+			produce: func(t *testing.T, hub *wsHub, cancel context.CancelFunc) {
+				hub.inbox <- sourcedClientEvent{
+					event: clientEvent{},
+				}
+			},
+		},
+		{
+			name: "InboxEvent/WithHandlers",
+			produce: func(t *testing.T, hub *wsHub, cancel context.CancelFunc) {
+				weightedCalls := 0
+				d1 := hub.registerHandler(countingClientEventHandler{counter: &weightedCalls, increment: 1})
+				d2 := hub.registerHandler(countingClientEventHandler{counter: &weightedCalls, increment: 2})
+				defer d2()
+				defer d1()
+
+				hub.inbox <- sourcedClientEvent{
+					event: clientEvent{},
+				}
+				blockingSleep(t, time.Millisecond)
+
+				if weightedCalls != 3 {
+					t.Errorf("weightedCalls got %d, want 3", weightedCalls)
+				}
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -250,11 +291,11 @@ func Test_wsClient_writePump(t *testing.T) {
 				}
 				c.conn = conn
 				consumeTextMessageFromWebSocket(t, conn, "Request served by", time.Second)
-				c.outbox = make(chan event)
+				c.outbox = make(chan serverEvent)
 				close(c.outbox)
 				blockingSleep(t, time.Millisecond*10)
 
-				ensureNoMoreMessagesFromWebSocket(t, conn, time.Millisecond*10)
+				ensureNoMoreMessagesFromWebSocket(t, conn)
 			},
 		},
 		{
@@ -266,18 +307,17 @@ func Test_wsClient_writePump(t *testing.T) {
 				}
 				c.conn = conn
 				consumeTextMessageFromWebSocket(t, conn, "Request served by", time.Second)
-				c.outbox = make(chan event, 2)
+				c.outbox = make(chan serverEvent, 2)
 				blockingSleep(t, time.Millisecond*10)
-				c.outbox <- event{}
-				c.outbox <- event{
+				c.outbox <- serverEvent{}
+				c.outbox <- serverEvent{
 					QueueUpdated: &eventQueueUpdated{Queue: []toDownload{}},
 				}
-				// close(c.outbox)
 			},
 			verify: func(t *testing.T, c *wsClient) {
 				consumeTextMessageFromWebSocket(t, c.conn, "{}", time.Second)
 				consumeTextMessageFromWebSocket(t, c.conn, `{"queueUpdated":{"queue":[]}}`, time.Second)
-				ensureNoMoreMessagesFromWebSocket(t, c.conn, time.Millisecond*10)
+				ensureNoMoreMessagesFromWebSocket(t, c.conn)
 				close(c.outbox)
 			},
 		},
