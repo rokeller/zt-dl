@@ -21,14 +21,17 @@ type formatJson struct {
 	Duration string `json:"duration"` // seconds as string
 }
 type streamJson struct {
-	Index        int            `json:"index"`
-	CodecType    string         `json:"codec_type"`
-	SampleRate   string         `json:"sample_rate"`    // audio streams only
-	Tags         map[string]any `json:"tags"`           // audio and subtitle streams
-	Width        int            `json:"width"`          // video streams only
-	Height       int            `json:"height"`         // video streams only
-	AvgFrameRate string         `json:"avg_frame_rate"` // video streams only
-	BitRate      string         `json:"bit_rate"`       // video streams only
+	Index         int            `json:"index"`
+	CodecType     string         `json:"codec_type"`
+	CodecName     string         `json:"codec_name"`
+	SampleRate    string         `json:"sample_rate"`    // audio streams only
+	Channels      int            `json:"channels"`       // audio streams only
+	ChannelLayout string         `json:"channel_layout"` // audio streams only
+	Tags          map[string]any `json:"tags"`           // audio and subtitle streams
+	Width         int            `json:"width"`          // video streams only
+	Height        int            `json:"height"`         // video streams only
+	AvgFrameRate  string         `json:"avg_frame_rate"` // video streams only
+	BitRate       string         `json:"bit_rate"`       // video streams only
 }
 
 type format struct {
@@ -43,18 +46,24 @@ type SourceStream interface {
 type Stream struct {
 	Index     int
 	CodecType string
+	CodecName string
 }
 
 type AudioStream struct {
 	Stream
-	SampleRate int
+	SampleRate    int
+	Channels      int
+	ChannelLayout string
+	Language      string
 }
 
 var _ SourceStream = &AudioStream{}
 
 // String implements [SourceStream]
 func (s *AudioStream) String() string {
-	return fmt.Sprintf("[audio] sample rate %dHz (stream #%d)", s.SampleRate, s.Stream.Index)
+	return fmt.Sprintf(
+		"%s, sample rate %dHz, %d channels (%s), language %q (stream #%d)",
+		s.CodecName, s.SampleRate, s.Channels, s.ChannelLayout, s.Language, s.Stream.Index)
 }
 
 // Index implements [SourceStream]
@@ -71,7 +80,8 @@ var _ SourceStream = &SubtitleStream{}
 
 // String implements [SourceStream]
 func (s *SubtitleStream) String() string {
-	return fmt.Sprintf("[subtitle] language %q (stream #%d)", s.Language, s.Stream.Index)
+	return fmt.Sprintf("%s, language %q (stream #%d)",
+		s.CodecName, s.Language, s.Stream.Index)
 }
 
 // Index implements [SourceStream]
@@ -91,8 +101,8 @@ var _ SourceStream = &VideoStream{}
 
 // String implements [SourceStream]
 func (s *VideoStream) String() string {
-	return fmt.Sprintf("[video] width/height %d/%d, bit rate %dbps, avg frame rate %dfps (stream #%d)",
-		s.Width, s.Height, s.BitRate, s.AvgFrameRate, s.Stream.Index)
+	return fmt.Sprintf("%s, width/height %d/%d, bit rate %dbps, avg frame rate %dfps (stream #%d)",
+		s.CodecName, s.Width, s.Height, s.BitRate, s.AvgFrameRate, s.Stream.Index)
 }
 
 // Index implements [SourceStream]
@@ -165,12 +175,22 @@ func (s streamJson) audioStream() (*AudioStream, error) {
 	if nil != err {
 		return nil, fmt.Errorf("failed to parse sample rate from %q: %w", s.SampleRate, err)
 	}
+	lang := "<not-specified>"
+	if nil != s.Tags {
+		if l, found := s.Tags["language"]; found {
+			lang = l.(string)
+		}
+	}
 	audio := AudioStream{
 		Stream: Stream{
 			Index:     s.Index,
 			CodecType: s.CodecType,
+			CodecName: s.CodecName,
 		},
-		SampleRate: int(sampleRate),
+		SampleRate:    int(sampleRate),
+		Channels:      s.Channels,
+		ChannelLayout: s.ChannelLayout,
+		Language:      lang,
 	}
 	return &audio, nil
 }
@@ -189,6 +209,7 @@ func (s streamJson) subtitleStream() (*SubtitleStream, error) {
 		Stream: Stream{
 			Index:     s.Index,
 			CodecType: s.CodecType,
+			CodecName: s.CodecName,
 		},
 		Language: lang.(string),
 	}
@@ -213,6 +234,7 @@ func (s streamJson) videoStream() (*VideoStream, error) {
 		Stream: Stream{
 			Index:     s.Index,
 			CodecType: s.CodecType,
+			CodecName: s.CodecName,
 		},
 		Width:        s.Width,
 		Height:       s.Height,

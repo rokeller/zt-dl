@@ -26,3 +26,13 @@ func IsVideoStream(s SourceStream) bool {
 	_, ok := s.(*VideoStream)
 	return ok
 }
+
+type SourceStreamTransformer[T any] func(SourceStream) T
+
+func TransformStreams[T any](streams []SourceStream, transformer SourceStreamTransformer[T]) []T {
+	res := make([]T, 0, len(streams))
+	for _, stream := range streams {
+		res = append(res, transformer(stream))
+	}
+	return res
+}
