@@ -61,5 +61,5 @@ func runDownloadRecordingCmd(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println("Starting download ...")
-	return d.Download(cmd.Context(), nil)
+	return d.Download(cmd.Context(), ffmpeg.NewBestStreamsSelectorWithSubtitles(), nil)
 }

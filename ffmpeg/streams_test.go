@@ -67,30 +67,23 @@ func Test_downloadable_DetectStreams_ffprobe_Complete(t *testing.T) {
 		t.Errorf("downloadable.DetectStreams() got error %v, want nil", err)
 	}
 
-	expectedAudioStreams := []audioStream{
-		{
-			stream: stream{
+	expectedStreams := []SourceStream{
+		&AudioStream{
+			Stream: Stream{
 				Index:     0,
 				CodecType: "audio",
 			},
 			SampleRate: 44000,
 		},
-		{
-			stream: stream{
+		&AudioStream{
+			Stream: Stream{
 				Index:     1,
 				CodecType: "audio",
 			},
 			SampleRate: 88000,
 		},
-	}
-	if len(d.audioStreams) != len(expectedAudioStreams) ||
-		!reflect.DeepEqual(d.audioStreams, expectedAudioStreams) {
-		t.Errorf("audioStreams mismatch: got %v, want %v", d.audioStreams, expectedAudioStreams)
-	}
-
-	expectedVideoStreams := []videoStream{
-		{
-			stream: stream{
+		&VideoStream{
+			Stream: Stream{
 				Index:     2,
 				CodecType: "video",
 			},
@@ -99,8 +92,8 @@ func Test_downloadable_DetectStreams_ffprobe_Complete(t *testing.T) {
 			AvgFrameRate: 50,
 			BitRate:      1200,
 		},
-		{
-			stream: stream{
+		&VideoStream{
+			Stream: Stream{
 				Index:     5,
 				CodecType: "video",
 			},
@@ -110,45 +103,45 @@ func Test_downloadable_DetectStreams_ffprobe_Complete(t *testing.T) {
 			BitRate:      3456000,
 		},
 	}
-	if len(d.videoStreams) != len(expectedVideoStreams) ||
-		!reflect.DeepEqual(d.videoStreams, expectedVideoStreams) {
-		t.Errorf("videoStreams mismatch: got %v, want %v", d.videoStreams, expectedVideoStreams)
+	if len(d.streams) != len(expectedStreams) ||
+		!reflect.DeepEqual(d.streams, expectedStreams) {
+		t.Errorf("streams mismatch: got %v, want %v", d.streams, expectedStreams)
 	}
 }
 
 func Test_downloadable_getBestAudioStream(t *testing.T) {
 	tests := []struct {
 		name    string // description of this test case
-		streams []audioStream
-		want    *audioStream
+		streams []SourceStream
+		want    *AudioStream
 	}{
 		{
 			name: "SingleSteram",
-			streams: []audioStream{
-				{
-					stream:     stream{Index: 12, CodecType: "audio"},
+			streams: []SourceStream{
+				&AudioStream{
+					Stream:     Stream{Index: 12, CodecType: "audio"},
 					SampleRate: 3456,
 				},
 			},
-			want: &audioStream{
-				stream:     stream{Index: 12, CodecType: "audio"},
+			want: &AudioStream{
+				Stream:     Stream{Index: 12, CodecType: "audio"},
 				SampleRate: 3456,
 			},
 		},
 		{
 			name: "MultipleStreams",
-			streams: []audioStream{
-				{
-					stream:     stream{Index: 12, CodecType: "audio"},
+			streams: []SourceStream{
+				&AudioStream{
+					Stream:     Stream{Index: 12, CodecType: "audio"},
 					SampleRate: 123,
 				},
-				{
-					stream:     stream{Index: 23, CodecType: "audio"},
+				&AudioStream{
+					Stream:     Stream{Index: 23, CodecType: "audio"},
 					SampleRate: 234,
 				},
 			},
-			want: &audioStream{
-				stream:     stream{Index: 23, CodecType: "audio"},
+			want: &AudioStream{
+				Stream:     Stream{Index: 23, CodecType: "audio"},
 				SampleRate: 234,
 			},
 		},
@@ -156,8 +149,8 @@ func Test_downloadable_getBestAudioStream(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			d := NewDownloadable("http://input", "./output")
-			d.audioStreams = tt.streams
-			got := d.getBestAudioStream()
+			d.streams = tt.streams
+			got := bestAudioStream(d.streams)
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("getBestAudioStream() = %v, want %v", got, tt.want)
 			}
@@ -168,22 +161,22 @@ func Test_downloadable_getBestAudioStream(t *testing.T) {
 func Test_downloadable_getBestVideoStream(t *testing.T) {
 	tests := []struct {
 		name    string // description of this test case
-		streams []videoStream
-		want    *videoStream
+		streams []SourceStream
+		want    *VideoStream
 	}{
 		{
 			name: "SingleSteram",
-			streams: []videoStream{
-				{
-					stream:       stream{Index: 12, CodecType: "video"},
+			streams: []SourceStream{
+				&VideoStream{
+					Stream:       Stream{Index: 12, CodecType: "video"},
 					Width:        1234,
 					Height:       567,
 					AvgFrameRate: 22,
 					BitRate:      33333,
 				},
 			},
-			want: &videoStream{
-				stream:       stream{Index: 12, CodecType: "video"},
+			want: &VideoStream{
+				Stream:       Stream{Index: 12, CodecType: "video"},
 				Width:        1234,
 				Height:       567,
 				AvgFrameRate: 22,
@@ -192,24 +185,24 @@ func Test_downloadable_getBestVideoStream(t *testing.T) {
 		},
 		{
 			name: "MultipleStreams",
-			streams: []videoStream{
-				{
-					stream:       stream{Index: 12, CodecType: "video"},
+			streams: []SourceStream{
+				&VideoStream{
+					Stream:       Stream{Index: 12, CodecType: "video"},
 					Width:        123,
 					Height:       56,
 					AvgFrameRate: 22,
 					BitRate:      33333,
 				},
-				{
-					stream:       stream{Index: 34, CodecType: "video"},
+				&VideoStream{
+					Stream:       Stream{Index: 34, CodecType: "video"},
 					Width:        2345,
 					Height:       678,
 					AvgFrameRate: 33,
 					BitRate:      444444,
 				},
 			},
-			want: &videoStream{
-				stream:       stream{Index: 34, CodecType: "video"},
+			want: &VideoStream{
+				Stream:       Stream{Index: 34, CodecType: "video"},
 				Width:        2345,
 				Height:       678,
 				AvgFrameRate: 33,
@@ -220,8 +213,8 @@ func Test_downloadable_getBestVideoStream(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			d := NewDownloadable("http://input", "./output")
-			d.videoStreams = tt.streams
-			got := d.getBestVideoStream()
+			d.streams = tt.streams
+			got := bestVideoStream(d.streams)
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("getBestVideoStream() = %v, want %v", got, tt.want)
 			}

@@ -12,45 +12,92 @@ import (
 	e "github.com/rokeller/zt-dl/exec"
 )
 
+// probeResult matches the JSON output from ffprobe.
 type probeResult struct {
 	Format  formatJson   `json:"format"`
 	Streams []streamJson `json:"streams"`
+}
+type formatJson struct {
+	Duration string `json:"duration"` // seconds as string
+}
+type streamJson struct {
+	Index        int            `json:"index"`
+	CodecType    string         `json:"codec_type"`
+	SampleRate   string         `json:"sample_rate"`    // audio streams only
+	Tags         map[string]any `json:"tags"`           // audio and subtitle streams
+	Width        int            `json:"width"`          // video streams only
+	Height       int            `json:"height"`         // video streams only
+	AvgFrameRate string         `json:"avg_frame_rate"` // video streams only
+	BitRate      string         `json:"bit_rate"`       // video streams only
 }
 
 type format struct {
 	Duration time.Duration
 }
-type stream struct {
+
+type SourceStream interface {
+	fmt.Stringer
+	Index() int
+}
+
+type Stream struct {
 	Index     int
 	CodecType string
 }
 
-type audioStream struct {
-	stream
+type AudioStream struct {
+	Stream
 	SampleRate int
 }
 
-type videoStream struct {
-	stream
+var _ SourceStream = &AudioStream{}
+
+// String implements [SourceStream]
+func (s *AudioStream) String() string {
+	return fmt.Sprintf("[audio] sample rate %dHz (stream #%d)", s.SampleRate, s.Stream.Index)
+}
+
+// Index implements [SourceStream]
+func (s *AudioStream) Index() int {
+	return s.Stream.Index
+}
+
+type SubtitleStream struct {
+	Stream
+	Language string
+}
+
+var _ SourceStream = &SubtitleStream{}
+
+// String implements [SourceStream]
+func (s *SubtitleStream) String() string {
+	return fmt.Sprintf("[subtitle] language %q (stream #%d)", s.Language, s.Stream.Index)
+}
+
+// Index implements [SourceStream]
+func (s *SubtitleStream) Index() int {
+	return s.Stream.Index
+}
+
+type VideoStream struct {
+	Stream
 	Width        int
 	Height       int
 	AvgFrameRate int
 	BitRate      int
 }
 
-type formatJson struct {
-	Duration string `json:"duration"` // seconds as string
+var _ SourceStream = &VideoStream{}
+
+// String implements [SourceStream]
+func (s *VideoStream) String() string {
+	return fmt.Sprintf("[video] width/height %d/%d, bit rate %dbps, avg frame rate %dfps (stream #%d)",
+		s.Width, s.Height, s.BitRate, s.AvgFrameRate, s.Stream.Index)
 }
 
-type streamJson struct {
-	Index        int    `json:"index"`
-	CodecType    string `json:"codec_type"`
-	SampleRate   string `json:"sample_rate"`    // audio streams only
-	Width        int    `json:"width"`          // video streams only
-	Height       int    `json:"height"`         // video streams only
-	AvgFrameRate string `json:"avg_frame_rate"` // video streams only
-	BitRate      string `json:"bit_rate"`       // video streams only
-
+// Index implements [SourceStream]
+func (s *VideoStream) Index() int {
+	return s.Stream.Index
 }
 
 func (d *downloadable) DetectStreams(ctx context.Context) error {
@@ -83,86 +130,94 @@ func (d *downloadable) DetectStreams(ctx context.Context) error {
 		Duration: time.Second * time.Duration(duration),
 	}
 
-	as := make([]audioStream, 0)
-	vs := make([]videoStream, 0)
+	streams := make([]SourceStream, 0)
 
 	for _, s := range res.Streams {
 		switch s.CodecType {
 		case "audio":
-			sampleRate, err := strconv.ParseInt(s.SampleRate, 10, 0)
-			if nil != err {
-				return fmt.Errorf("failed to parse sample rate from %q: %w", s.SampleRate, err)
+			if audio, err := s.audioStream(); nil != err {
+				return err
+			} else if nil != audio {
+				streams = append(streams, audio)
 			}
-			audio := audioStream{
-				stream: stream{
-					Index:     s.Index,
-					CodecType: s.CodecType,
-				},
-				SampleRate: int(sampleRate),
+		case "subtitle":
+			if subtitle, err := s.subtitleStream(); nil != err {
+				return err
+			} else if nil != subtitle {
+				streams = append(streams, subtitle)
 			}
-			as = append(as, audio)
 		case "video":
-			avgFrameRateStr := s.AvgFrameRate
-			slashPos := strings.Index(avgFrameRateStr, "/")
-			if slashPos >= 0 {
-				avgFrameRateStr = avgFrameRateStr[0:slashPos]
+			if video, err := s.videoStream(); nil != err {
+				return err
+			} else if nil != video {
+				streams = append(streams, video)
 			}
-			avgFrameRate, err := strconv.ParseInt(avgFrameRateStr, 10, 0)
-			if nil != err {
-				return fmt.Errorf("failed to parse average frame rate from %q: %w", s.AvgFrameRate, err)
-			}
-			bitRate, err := strconv.ParseInt(s.BitRate, 10, 0)
-			if nil != err {
-				return fmt.Errorf("failed to parse bit rate from %q: %w", s.BitRate, err)
-			}
-			video := videoStream{
-				stream: stream{
-					Index:     s.Index,
-					CodecType: s.CodecType,
-				},
-				Width:        s.Width,
-				Height:       s.Height,
-				AvgFrameRate: int(avgFrameRate),
-				BitRate:      int(bitRate),
-			}
-			vs = append(vs, video)
 		}
 	}
 
 	d.format = f
-	d.audioStreams = as
-	d.videoStreams = vs
-
+	d.streams = streams
 	return nil
 }
 
-func (d *downloadable) getBestAudioStream() *audioStream {
-	if len(d.audioStreams) == 1 {
-		return &d.audioStreams[0]
+func (s streamJson) audioStream() (*AudioStream, error) {
+	sampleRate, err := strconv.ParseInt(s.SampleRate, 10, 0)
+	if nil != err {
+		return nil, fmt.Errorf("failed to parse sample rate from %q: %w", s.SampleRate, err)
 	}
-
-	var best *audioStream
-	for _, as := range d.audioStreams {
-		if nil == best || as.SampleRate > best.SampleRate {
-			best = &as
-		}
+	audio := AudioStream{
+		Stream: Stream{
+			Index:     s.Index,
+			CodecType: s.CodecType,
+		},
+		SampleRate: int(sampleRate),
 	}
-
-	return best
+	return &audio, nil
 }
 
-func (d *downloadable) getBestVideoStream() *videoStream {
-	if len(d.videoStreams) == 1 {
-		return &d.videoStreams[0]
+func (s streamJson) subtitleStream() (*SubtitleStream, error) {
+	if nil == s.Tags {
+		fmt.Printf("WARN: failed to find tags for subtitle stream %d.\n", s.Index)
+		return nil, nil
 	}
-
-	var best *videoStream
-	for _, vs := range d.videoStreams {
-		if nil == best ||
-			(vs.Width > best.Width && vs.Height > best.Height && vs.AvgFrameRate > best.AvgFrameRate) {
-			best = &vs
-		}
+	lang, found := s.Tags["language"]
+	if !found {
+		fmt.Printf("WARN: failed to find language tag for subtitle stream %d.\n", s.Index)
+		return nil, nil
 	}
+	subtitle := SubtitleStream{
+		Stream: Stream{
+			Index:     s.Index,
+			CodecType: s.CodecType,
+		},
+		Language: lang.(string),
+	}
+	return &subtitle, nil
+}
 
-	return best
+func (s streamJson) videoStream() (*VideoStream, error) {
+	avgFrameRateStr := s.AvgFrameRate
+	slashPos := strings.Index(avgFrameRateStr, "/")
+	if slashPos >= 0 {
+		avgFrameRateStr = avgFrameRateStr[0:slashPos]
+	}
+	avgFrameRate, err := strconv.ParseInt(avgFrameRateStr, 10, 0)
+	if nil != err {
+		return nil, fmt.Errorf("failed to parse average frame rate from %q: %w", s.AvgFrameRate, err)
+	}
+	bitRate, err := strconv.ParseInt(s.BitRate, 10, 0)
+	if nil != err {
+		return nil, fmt.Errorf("failed to parse bit rate from %q: %w", s.BitRate, err)
+	}
+	video := VideoStream{
+		Stream: Stream{
+			Index:     s.Index,
+			CodecType: s.CodecType,
+		},
+		Width:        s.Width,
+		Height:       s.Height,
+		AvgFrameRate: int(avgFrameRate),
+		BitRate:      int(bitRate),
+	}
+	return &video, nil
 }

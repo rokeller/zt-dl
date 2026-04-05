@@ -40,28 +40,41 @@ func TestNewDownloadable(t *testing.T) {
 
 func Test_downloadable_Download(t *testing.T) {
 	tests := []struct {
-		name    string // description of this test case
-		d       downloadable
-		wantErr bool
+		name     string // description of this test case
+		d        downloadable
+		selector StreamsSelector
+		wantErr  bool
 	}{
 		{
-			name:    "Missing Audio",
-			d:       downloadable{},
-			wantErr: true,
+			name:     "No Streams",
+			d:        downloadable{},
+			selector: NewBestStreamsSelectorWithSubtitles(),
+			wantErr:  true,
+		},
+		{
+			name: "Missing Audio",
+			d: downloadable{
+				streams: []SourceStream{
+					&SubtitleStream{Stream: Stream{Index: 0}, Language: "tst"},
+				},
+			},
+			selector: NewBestStreamsSelectorWithSubtitles(),
+			wantErr:  true,
 		},
 		{
 			name: "Missing Video",
 			d: downloadable{
-				audioStreams: []audioStream{
-					{},
+				streams: []SourceStream{
+					&AudioStream{Stream: Stream{Index: 1}, SampleRate: 12000},
 				},
 			},
-			wantErr: true,
+			selector: NewBestStreamsSelectorWithSubtitles(),
+			wantErr:  true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotErr := tt.d.Download(context.Background(), nil)
+			gotErr := tt.d.Download(context.Background(), tt.selector, nil)
 			if gotErr != nil {
 				if !tt.wantErr {
 					t.Errorf("Download() failed: %v", gotErr)
@@ -96,17 +109,15 @@ func Test_downloadable_Download_ffmpeg(t *testing.T) {
 	}
 
 	d := NewDownloadable("https://foo.bar.com/source", "target.mp4")
-	d.audioStreams = []audioStream{
-		{
-			stream: stream{
+	d.streams = []SourceStream{
+		&AudioStream{
+			Stream: Stream{
 				Index: 0,
 			},
 			SampleRate: 1234,
 		},
-	}
-	d.videoStreams = []videoStream{
-		{
-			stream: stream{
+		&VideoStream{
+			Stream: Stream{
 				Index: 2,
 			},
 			Width:        987,
@@ -115,7 +126,8 @@ func Test_downloadable_Download_ffmpeg(t *testing.T) {
 			BitRate:      12345,
 		},
 	}
-	err := d.Download(t.Context(), nil)
+	selector := NewBestStreamsSelectorWithSubtitles()
+	err := d.Download(t.Context(), selector, nil)
 	if nil != err {
 		t.Errorf("downloadable.Download() got error %v, want nil", err)
 	}
