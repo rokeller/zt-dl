@@ -53,17 +53,6 @@ jobs:
     # or others). This is typically only required for manual builds.
     # - name: Setup runtime (example)
     #   uses: actions/setup-example@v1
-    - uses: pnpm/action-setup@v5
-      with:
-        version: 10
-
-    - name: Set up Node
-      uses: actions/setup-node@v6
-      with:
-        node-version: 22.x
-        cache: pnpm
-        cache-dependency-path: |
-          server/client/pnpm-lock.yaml
 
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL
