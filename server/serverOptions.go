@@ -48,3 +48,7 @@ func WithInteractiveStreamsSelection() ServeOption {
 		}
 	}
 }
+
+func bestStreamsSelectorFactory() ffmpeg.StreamsSelector {
+	return ffmpeg.NewBestStreamsSelector()
+}
