@@ -187,8 +187,8 @@ func Test_recordingsApiController_enqueueDownload(t *testing.T) {
 				t.Errorf("got queue %v, want %v", c.dlq.q, tt.wantQueue)
 			}
 
-			consumeEvents(t, s.hub.outbox, tt.wantEvents)
-			ensureNoMoreEvents(t, s.hub.outbox)
+			consumeServerEvents(t, s.hub.outbox, tt.wantEvents)
+			ensureNoMoreServerEvents(t, s.hub.outbox)
 		})
 	}
 }
@@ -252,8 +252,8 @@ func Test_recordingsApiController_dequeueDownload(t *testing.T) {
 				t.Errorf("got queue %v, want %v", c.dlq.q, tt.wantQueue)
 			}
 
-			consumeEvents(t, s.hub.outbox, tt.wantEvents)
-			ensureNoMoreEvents(t, s.hub.outbox)
+			consumeServerEvents(t, s.hub.outbox, tt.wantEvents)
+			ensureNoMoreServerEvents(t, s.hub.outbox)
 		})
 	}
 }
