@@ -37,7 +37,7 @@ export function QueueFabMenu({ queue }: QueueFabMenuProps) {
 
     async function dequeueRecording(item: PendingDownload) {
         try {
-            const resp = await fetch('/api/recordings/' + item.recordingId + '/dequeue', {
+            const resp = await fetch('/api/recordings/' + Number(item.recordingId) + '/dequeue', {
                 method: 'POST',
             })
             if (resp.ok) {
