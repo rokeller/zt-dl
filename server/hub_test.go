@@ -50,6 +50,13 @@ func ensureNoMoreServerEvents(t *testing.T, events <-chan serverEvent) {
 	}
 }
 
+func ensureNoMoreClientEvents(t *testing.T, events <-chan sourcedClientEvent) {
+	t.Helper()
+	if len(events) != 0 {
+		t.Errorf("events queue has %d events, want 0", len(events))
+	}
+}
+
 func consumeTextMessageFromWebSocket(t *testing.T, conn *websocket.Conn, prefix string, timeout time.Duration) {
 	t.Helper()
 	conn.SetReadDeadline(time.Now().Add(timeout))
@@ -66,12 +73,39 @@ func consumeTextMessageFromWebSocket(t *testing.T, conn *websocket.Conn, prefix 
 	}
 }
 
+func sendJsonMessageToWebSocket(t *testing.T, conn *websocket.Conn, json any, timeout time.Duration) {
+	t.Helper()
+	err := conn.SetWriteDeadline(time.Now().Add(timeout))
+	if nil != err {
+		t.Errorf("expected no error, got %v", err)
+	}
+	err = conn.WriteJSON(json)
+	if nil != err {
+		t.Errorf("expected no error, got %v", err)
+	}
+}
+
 func ensureNoMoreMessagesFromWebSocket(t *testing.T, conn *websocket.Conn) {
 	t.Helper()
 	conn.SetReadDeadline(time.Now().Add(time.Millisecond))
 	_, _, err := conn.NextReader()
 	if nil == err {
 		t.Error("expected read error, got nothing")
+	}
+}
+
+func ensureSourceClientEventMatches(
+	t *testing.T,
+	actual sourcedClientEvent,
+	wantC *wsClient,
+	wantE clientEvent,
+) {
+	t.Helper()
+	if actual.client != wantC {
+		t.Error("expected client is different from actual")
+	}
+	if !reflect.DeepEqual(actual.event, wantE) {
+		t.Errorf("got clientEvent %#v, want %#v", actual.event, wantE)
 	}
 }
 
@@ -333,6 +367,87 @@ func Test_wsClient_writePump(t *testing.T) {
 				go tt.verify(t, c)
 			}
 			c.writePump()
+		})
+	}
+}
+
+func Test_wsClient_readPump(t *testing.T) {
+	tests := []struct {
+		name   string // description of this test case
+		setup  func(t *testing.T, c *wsClient)
+		verify func(t *testing.T, c *wsClient)
+	}{
+		{
+			name: "NoopForClosedConnection",
+			setup: func(t *testing.T, c *wsClient) {
+				conn, _, err := websocket.DefaultDialer.Dial("wss://echo.websocket.org", http.Header{})
+				if nil != err {
+					t.Fatalf("failed to create websocket connection: %v", err)
+				}
+				c.conn = conn
+				consumeTextMessageFromWebSocket(t, conn, "Request served by", time.Second)
+				conn.Close()
+			},
+		},
+		{
+			name: "EventReceived/ForwardedToHub",
+			setup: func(t *testing.T, c *wsClient) {
+				conn, _, err := websocket.DefaultDialer.Dial("wss://echo.websocket.org", http.Header{})
+				if nil != err {
+					t.Fatalf("failed to create websocket connection: %v", err)
+				}
+				c.conn = conn
+				consumeTextMessageFromWebSocket(t, conn, "Request served by", time.Second)
+				c.hub = &wsHub{
+					inbox: make(chan sourcedClientEvent, 10),
+				}
+				blockingSleep(t, time.Millisecond*10)
+			},
+			verify: func(t *testing.T, c *wsClient) {
+				sendJsonMessageToWebSocket(t, c.conn, clientEvent{}, time.Millisecond*10)
+				sendJsonMessageToWebSocket(t, c.conn, clientEvent{
+					Correlation: "my-test",
+				}, time.Millisecond*10)
+				sendJsonMessageToWebSocket(t, c.conn, clientEvent{
+					Correlation: "test2",
+					StreamsSelected: &eventStreamsSelected{
+						SelectedStreams: []sourceStream{
+							{
+								Index: 123,
+							},
+						},
+					},
+				}, time.Millisecond*10)
+
+				ensureSourceClientEventMatches(t, <-c.hub.inbox, c, clientEvent{})
+				ensureSourceClientEventMatches(t, <-c.hub.inbox, c, clientEvent{
+					Correlation: "my-test",
+				})
+				ensureSourceClientEventMatches(t, <-c.hub.inbox, c, clientEvent{
+					Correlation: "test2",
+					StreamsSelected: &eventStreamsSelected{
+						SelectedStreams: []sourceStream{
+							{
+								Index: 123,
+							},
+						},
+					},
+				})
+				ensureNoMoreClientEvents(t, c.hub.inbox)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &wsClient{}
+
+			if tt.setup != nil {
+				tt.setup(t, c)
+			}
+			if tt.verify != nil {
+				go tt.verify(t, c)
+			}
+			c.readPump()
 		})
 	}
 }

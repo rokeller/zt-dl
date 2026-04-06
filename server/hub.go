@@ -32,6 +32,8 @@ type wsHub struct {
 	lastDownloadStarted *eventDownloadStarted
 }
 
+var _ http.Handler = &wsHub{}
+
 type wsClient struct {
 	hub    *wsHub
 	conn   *websocket.Conn
@@ -108,6 +110,7 @@ func (h *wsHub) run(ctx context.Context) {
 	}
 }
 
+// ServeHTTP implements [http.Handler].
 func (h *wsHub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	wupgrade := w
 	if u, ok := w.(interface{ Unwrap() http.ResponseWriter }); ok {
