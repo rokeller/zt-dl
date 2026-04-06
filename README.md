@@ -51,6 +51,11 @@ form: `-s`) which when specified (or explicitly set to `true`) support a manual
 interactive source streams selection. This feature is introduced with version
 `0.3.0`, but is not enabled by default for backward compatibility.
 
+When manual source streams selection is configured, the Web UI in the browser
+will show a dialoag similar to the following:
+
+![Web UI - Source Streams Selection](docs/screenshots/web-ui-source-streams-selection.webp)
+
 ### Overwriting target files
 
 By default, `zt-dl` does _not_ overwrite target files. That is, if a file with
