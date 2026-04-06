@@ -37,14 +37,22 @@ func runInteractiveCmd(cmd *cobra.Command, args []string) error {
 	port, _ := cmd.Flags().GetUint16(string(Port))
 	overwrite, _ := cmd.Flags().GetBool(string(Overwrite))
 	openUI, _ := cmd.Flags().GetBool(string(OpenWebUI))
+	selectStreams, _ := cmd.Flags().GetBool(string(SelectStreams))
 
-	return server.Serve(cmd.Context(),
+	opts := []server.ServeOption{
 		server.WithZattooAccount(acct),
 		server.WithPort(port),
 		server.WithOutputDir(outdir),
 		server.WithOverwrite(overwrite),
 		server.WithOpenWebUI(openUI),
-	)
+		server.WithBestStreamsSelection(),
+	}
+
+	if selectStreams {
+		opts = append(opts, server.WithInteractiveStreamsSelection())
+	}
+
+	return server.Serve(cmd.Context(), opts...)
 }
 
 func init() {

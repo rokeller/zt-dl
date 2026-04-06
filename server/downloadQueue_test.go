@@ -356,7 +356,7 @@ func Test_downloadQueue_downloadRecording_DownloadFails(t *testing.T) {
 	s := &server{
 		a:                      a,
 		hub:                    newHub(),
-		streamsSelectorFactory: defaultStreamsSelectorFactory,
+		streamsSelectorFactory: bestStreamsSelectorFactory,
 	}
 	q := &downloadQueue{
 		server: s,
@@ -447,7 +447,7 @@ func Test_downloadQueue_downloadRecording_DownloadSucceeds(t *testing.T) {
 	s := &server{
 		a:                      a,
 		hub:                    newHub(),
-		streamsSelectorFactory: defaultStreamsSelectorFactory,
+		streamsSelectorFactory: bestStreamsSelectorFactory,
 	}
 	q := &downloadQueue{
 		server: s,

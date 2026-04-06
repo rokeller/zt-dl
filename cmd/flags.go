@@ -7,9 +7,10 @@ import (
 type Flag string
 
 const (
-	Email     = Flag("email")
-	Domain    = Flag("domain")
-	Overwrite = Flag("overwrite")
+	Email         = Flag("email")
+	Domain        = Flag("domain")
+	Overwrite     = Flag("overwrite")
+	SelectStreams = Flag("select-streams")
 )
 
 func addEmailAndDomainFlags(cmd *cobra.Command) {
@@ -21,4 +22,5 @@ func addEmailAndDomainFlags(cmd *cobra.Command) {
 
 func addDownloadFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolP(string(Overwrite), "y", false, "Overwrite existing files?")
+	cmd.Flags().BoolP(string(SelectStreams), "s", false, "Select streams to download manually?")
 }

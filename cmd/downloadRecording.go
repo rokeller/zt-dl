@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/rokeller/zt-dl/ffmpeg"
@@ -45,6 +46,12 @@ func runDownloadRecordingCmd(cmd *cobra.Command, args []string) error {
 	email := cmd.Flag(string(Email)).Value.String()
 	domain := cmd.Flag(string(Domain)).Value.String()
 	overwrite, _ := cmd.Flags().GetBool(string(Overwrite))
+	selectStreams, _ := cmd.Flags().GetBool(string(SelectStreams))
+
+	if selectStreams {
+		return errors.New("manual stream selection not supported for this command yet - use the 'interactive' command instead")
+	}
+
 	acct := zattoo.NewAccount(email, domain)
 	if err := acct.Login(); nil != err {
 		return err

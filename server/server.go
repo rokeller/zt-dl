@@ -123,3 +123,7 @@ func open(ctx context.Context, url string) error {
 	args = append(args, url)
 	return e.CmdFactory(ctx, cmd, args...).Start()
 }
+
+func bestStreamsSelectorFactory() ffmpeg.StreamsSelector {
+	return ffmpeg.NewBestStreamsSelector()
+}

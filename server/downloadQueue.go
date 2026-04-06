@@ -114,11 +114,14 @@ func (q *downloadQueue) downloadRecording(r toDownload, done chan<- struct{}) {
 	q.hub.outbox <- serverEvent{
 		StateUpdated: &eventStateUpdated{State: "download", Reason: "starting download ..."},
 	}
-	if err := d.Download(context.Background(), &broadcastDownloadProgressHandler{
+	selector := q.streamsSelectorFactory()
+	progress := &broadcastDownloadProgressHandler{
 		server: q.server,
 		eventQueueUpdated: eventQueueUpdated{
 			Queue: q.q,
 		},
+	}
+	if err := d.Download(context.Background(), selector, progress); nil != err {
 		q.hub.outbox <- serverEvent{
 			DownloadErrored: &eventDownloadErrored{Filename: r.OutputPath, Reason: err.Error()},
 		}

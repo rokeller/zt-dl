@@ -1,6 +1,7 @@
 package server
 
 import (
+	"github.com/rokeller/zt-dl/ffmpeg"
 	"github.com/rokeller/zt-dl/zattoo"
 )
 
@@ -31,5 +32,19 @@ func WithOverwrite(overwrite bool) ServeOption {
 func WithOpenWebUI(openWebUI bool) ServeOption {
 	return func(s *server) {
 		s.openWebUI = openWebUI
+	}
+}
+
+func WithBestStreamsSelection() ServeOption {
+	return func(s *server) {
+		s.streamsSelectorFactory = bestStreamsSelectorFactory
+	}
+}
+
+func WithInteractiveStreamsSelection() ServeOption {
+	return func(s *server) {
+		s.streamsSelectorFactory = func() ffmpeg.StreamsSelector {
+			return newInteractiveStreamsSelector(s.hub)
+		}
 	}
 }
