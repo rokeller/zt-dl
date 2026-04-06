@@ -106,11 +106,15 @@ func (d *downloadable) Download(
 	// Now start the ffmpeg process ...
 	progress.Start()
 	if err := ffmpegCmd.Start(); nil != err {
-		return fmt.Errorf("failed to start ffmpeg: %w", err)
+		finalErr := fmt.Errorf("failed to start ffmpeg: %w", err)
+		progress.Error(finalErr)
+		return finalErr
 	}
 
 	if err := ffmpegCmd.Wait(); nil != err {
-		return fmt.Errorf("ffmpeg failed: %w", err)
+		finalErr := fmt.Errorf("ffmpeg failed: %w", err)
+		progress.Error(finalErr)
+		return finalErr
 	}
 	progress.Finished()
 	return nil

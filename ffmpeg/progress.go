@@ -2,6 +2,7 @@ package ffmpeg
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"regexp"
@@ -55,46 +56,60 @@ type downloadProgressTracker struct {
 	durationMsec int64
 }
 
+var (
+	reTimeProgress  = regexp.MustCompile(`time=(\d{2}):(\d{2}):(\d{2}).(\d{1,3})`)
+	reErrorProgress = regexp.MustCompile(`(?i)error`)
+)
+
 func (t *downloadProgressTracker) trackProgress() {
-	r := regexp.MustCompile(`time=(\d{2}):(\d{2}):(\d{2}).(\d{1,3})`)
 	scanner := bufio.NewScanner(t.source)
 
 	for scanner.Scan() {
 		line := scanner.Text()
-		pos := strings.Index(line, "time=")
-		if pos >= 0 {
-			m := r.FindStringSubmatch(line)
-			if nil == m || len(m) <= 0 {
-				continue
-			}
-
-			strH, strM, strS, strMS := m[1], m[2], m[3], m[4]
-			posMsec, err := parseTimeMsec(strH, strM, strS, strMS)
-			if nil != err {
-				continue
-			}
-			relPos := float32(posMsec) / float32(t.durationMsec)
-			elapsed := time.Now().UTC().Sub(t.start)
-			remaining := time.Hour * 24 * 999
-
-			if relPos > 0 {
-				estimatedTotal := int64(float32(elapsed.Milliseconds()) / relPos)
-				remaining =
-					(time.Millisecond * time.Duration(estimatedTotal-elapsed.Milliseconds())).
-						Truncate(time.Second)
-			}
-
-			t.handler.UpdateProgress(DownloadProgress{
-				RelCompleted: relPos,
-				Elapsed:      elapsed,
-				Remaining:    remaining,
-			})
+		if strings.Contains(line, "time=") {
+			t.tryReportProgress(line)
+		} else if reErrorProgress.MatchString(line) {
+			t.reportError(line)
 		}
 	}
 
 	if err := scanner.Err(); nil != err {
 		t.handler.Error(err)
 	}
+}
+
+func (t *downloadProgressTracker) tryReportProgress(line string) {
+	m := reTimeProgress.FindStringSubmatch(line)
+	if nil == m || len(m) <= 0 {
+		return
+	}
+
+	strH, strM, strS, strMS := m[1], m[2], m[3], m[4]
+	posMsec, err := parseTimeMsec(strH, strM, strS, strMS)
+	if nil != err {
+		return
+	}
+	relPos := float32(posMsec) / float32(t.durationMsec)
+	elapsed := time.Now().UTC().Sub(t.start)
+	remaining := time.Hour * 24 * 999
+
+	if relPos > 0 {
+		estimatedTotal := int64(float32(elapsed.Milliseconds()) / relPos)
+		remaining =
+			(time.Millisecond * time.Duration(estimatedTotal-elapsed.Milliseconds())).
+				Truncate(time.Second)
+	}
+
+	t.handler.UpdateProgress(DownloadProgress{
+		RelCompleted: relPos,
+		Elapsed:      elapsed,
+		Remaining:    remaining,
+	})
+}
+
+func (t *downloadProgressTracker) reportError(line string) {
+	err := errors.New(line)
+	t.handler.Error(err)
 }
 
 func parseTimeMsec(strH, strM, strS, strMS string) (int64, error) {
