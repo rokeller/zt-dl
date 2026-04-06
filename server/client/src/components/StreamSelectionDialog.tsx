@@ -13,12 +13,6 @@ import ListSubheader from '@mui/material/ListSubheader';
 import React from 'react';
 import type { SourceStream } from '../models';
 
-interface StreamSelectionDialogProps {
-    open: boolean;
-    onClose: (selected: SourceStream[]) => void;
-    sourceStreams: SourceStream[];
-}
-
 function compareSourceStreams(a: SourceStream, b: SourceStream): number {
     let res = a.type?.localeCompare(b.type || '');
     if (res !== undefined && res !== 0) {
@@ -30,6 +24,48 @@ function compareSourceStreams(a: SourceStream, b: SourceStream): number {
 
 function idForSourceStream(s: SourceStream): string {
     return 'source-stream-' + s.index;
+}
+
+interface SourceStreamsListItemsProps {
+    sourceStreams: SourceStream[];
+    selectedStreams: SourceStream[];
+    onToggleItem: (s: SourceStream) => void;
+}
+
+function SourceStreamsListItems({ sourceStreams, selectedStreams, onToggleItem }: SourceStreamsListItemsProps) {
+    let lastType: string | undefined;
+
+    return (
+        sourceStreams.map((s) => {
+            const id = idForSourceStream(s);
+            const needTypeSection = lastType != s.type;
+            lastType = s.type;
+            return (
+                <>
+                    {needTypeSection ? <ListSubheader>{s.type}</ListSubheader> : null}
+                    <ListItem key={id} disablePadding>
+                        <ListItemButton role={undefined} onClick={() => onToggleItem(s)}>
+                            <ListItemIcon>
+                                <Checkbox
+                                    edge='start'
+                                    checked={selectedStreams.includes(s)}
+                                    tabIndex={-1}
+                                    disableRipple
+                                    aria-labelledby={id} />
+                            </ListItemIcon>
+                            <ListItemText id={id} primary={s.desc} />
+                        </ListItemButton>
+                    </ListItem>
+                </>
+            )
+        })
+    );
+}
+
+interface StreamSelectionDialogProps {
+    open: boolean;
+    onClose: (selected: SourceStream[]) => void;
+    sourceStreams: SourceStream[];
 }
 
 export function StreamSelectionDialog({
@@ -55,30 +91,10 @@ export function StreamSelectionDialog({
     }
 
     const sortedStreams = sourceStreams.sort(compareSourceStreams);
-    let lastType: string | undefined;
-    const items = sortedStreams.map((s) => {
-        const id = idForSourceStream(s);
-        const needTypeSection = lastType != s.type;
-        lastType = s.type;
-        return (
-            <>
-                {needTypeSection ? <ListSubheader>{s.type}</ListSubheader> : null}
-                <ListItem key={id} disablePadding>
-                    <ListItemButton role={undefined} onClick={() => onToggleItem(s)}>
-                        <ListItemIcon>
-                            <Checkbox
-                                edge='start'
-                                checked={selected.includes(s)}
-                                tabIndex={-1}
-                                disableRipple
-                                aria-labelledby={id} />
-                        </ListItemIcon>
-                        <ListItemText id={id} primary={s.desc} />
-                    </ListItemButton>
-                </ListItem>
-            </>
-        )
-    });
+    const items = (
+        <SourceStreamsListItems sourceStreams={sortedStreams}
+            selectedStreams={selected} onToggleItem={onToggleItem} />
+    );
     const numSelected = selected.length;
 
     return (
