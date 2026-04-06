@@ -19,12 +19,16 @@ const (
 // wsHub maintains the set of active clients, broadcasts messages to the clients,
 // and receives messages from the clients.
 type wsHub struct {
-	upgrader   websocket.Upgrader
-	clients    map[*wsClient]struct{}
-	outbox     chan serverEvent
-	inbox      chan sourcedClientEvent
+	upgrader websocket.Upgrader
+	clients  map[*wsClient]struct{}
+	outbox   chan serverEvent
+	inbox    chan sourcedClientEvent
+	// Register/unregister for websocket clients
 	register   chan *wsClient
 	unregister chan *wsClient
+	// Add/remove for client event handlers
+	addHandler    chan clientEventHandler
+	removeHandler chan clientEventHandler
 
 	clientEventHandlers []clientEventHandler
 
@@ -51,11 +55,13 @@ func newHub() *wsHub {
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
 		},
-		outbox:     make(chan serverEvent, 32),
-		inbox:      make(chan sourcedClientEvent, 1),
-		register:   make(chan *wsClient, 8),
-		unregister: make(chan *wsClient, 8),
-		clients:    make(map[*wsClient]struct{}),
+		clients:       make(map[*wsClient]struct{}),
+		outbox:        make(chan serverEvent, 32),
+		inbox:         make(chan sourcedClientEvent, 1),
+		register:      make(chan *wsClient, 8),
+		unregister:    make(chan *wsClient, 8),
+		addHandler:    make(chan clientEventHandler, 1),
+		removeHandler: make(chan clientEventHandler, 1),
 	}
 }
 
@@ -80,6 +86,18 @@ func (h *wsHub) run(ctx context.Context) {
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
 				close(client.outbox)
+			}
+
+		// A handler for client events is added.
+		case handler := <-h.addHandler:
+			h.clientEventHandlers = append(h.clientEventHandlers, handler)
+
+		// A handler for client events is removed.
+		case handler := <-h.removeHandler:
+			for i, hh := range h.clientEventHandlers {
+				if hh == handler {
+					h.clientEventHandlers = append(h.clientEventHandlers[:i], h.clientEventHandlers[i+1:]...)
+				}
 			}
 
 		// Event received in hub's outbox to broadcast to clients.

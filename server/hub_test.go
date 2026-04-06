@@ -273,10 +273,12 @@ func Test_wsHub_run(t *testing.T) {
 			name: "InboxEvent/WithHandlers",
 			produce: func(t *testing.T, hub *wsHub, cancel context.CancelFunc) {
 				weightedCalls := 0
-				d1 := hub.registerHandler(countingClientEventHandler{counter: &weightedCalls, increment: 1})
-				d2 := hub.registerHandler(countingClientEventHandler{counter: &weightedCalls, increment: 2})
-				defer d2()
-				defer d1()
+				h1 := countingClientEventHandler{counter: &weightedCalls, increment: 1}
+				h2 := countingClientEventHandler{counter: &weightedCalls, increment: 2}
+				hub.addHandler <- h1
+				hub.addHandler <- h2
+				defer func() { hub.removeHandler <- h1 }()
+				defer func() { hub.removeHandler <- h2 }()
 
 				hub.inbox <- sourcedClientEvent{
 					event: clientEvent{},
