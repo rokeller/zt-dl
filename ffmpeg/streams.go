@@ -101,7 +101,7 @@ var _ SourceStream = &VideoStream{}
 
 // String implements [SourceStream]
 func (s *VideoStream) String() string {
-	return fmt.Sprintf("%s, width/height %d/%d, bit rate %dbps, avg frame rate %dfps (stream #%d)",
+	return fmt.Sprintf("%s, dimensions %dx%d, bit rate %dbps, avg frame rate %dfps (stream #%d)",
 		s.CodecName, s.Width, s.Height, s.BitRate, s.AvgFrameRate, s.Stream.Index)
 }
 

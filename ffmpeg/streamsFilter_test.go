@@ -113,7 +113,7 @@ func TestTransformStreams(t *testing.T) {
 			},
 			want: []string{
 				"audio_codec, sample rate 111Hz, 2 channels (test_audio), language \"audio_lang\" (stream #0)",
-				"video_codec, width/height 123/456, bit rate 9000bps, avg frame rate 78fps (stream #1)",
+				"video_codec, dimensions 123x456, bit rate 9000bps, avg frame rate 78fps (stream #1)",
 				"subtitle_codec, language \"srt_lang\" (stream #2)",
 			},
 		},
