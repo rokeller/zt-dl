@@ -2,44 +2,64 @@ package ffmpeg
 
 import (
 	"bytes"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 )
 
-func Test_downloadProgressTracker_showDownloadProgress(t *testing.T) {
+func Test_downloadProgressTracker_trackProgress(t *testing.T) {
 	tests := []struct {
-		name             string // description of this test case
-		pipeIn           string
-		expectedProgress []DownloadProgress
+		name         string // description of this test case
+		pipeIn       string
+		wantProgress []DownloadProgress
+		wantError    error
 	}{
 		{
-			name:             "No valid progress updates",
-			pipeIn:           "blah\nblotz\nfoo\ntime=00:60:00.12",
-			expectedProgress: []DownloadProgress{},
+			name:         "Progress/NoValidProgressUpdates",
+			pipeIn:       "blah\nblotz\nfoo\ntime=00:60:00.12",
+			wantProgress: []DownloadProgress{},
 		},
 		{
-			name:   "Zero progress",
+			name:   "Progress/ZeroProgress",
 			pipeIn: "time=00:00:00.00",
-			expectedProgress: []DownloadProgress{
+			wantProgress: []DownloadProgress{
 				{RelCompleted: 0, Elapsed: time.Second * 10, Remaining: 24 * 999 * time.Hour},
 			},
 		},
 		{
-			name:   "Single update with time",
+			name:   "Progress/SingleUpdateWithTime",
 			pipeIn: "blah\ntime=n/a\nfoo=x time=00:01:40.00 bar=123\n",
-			expectedProgress: []DownloadProgress{
+			wantProgress: []DownloadProgress{
 				{RelCompleted: .1, Elapsed: time.Second * 10, Remaining: time.Minute + time.Second*30},
 			},
 		},
 		{
-			name:   "Multiple updates with time",
+			name:   "Progress/MultipleUpdatesWithTime",
 			pipeIn: "blah\nfoo=x time=00:01:40.00 bar=123\n\nqwer time=00:15:00.00 asdf\n",
-			expectedProgress: []DownloadProgress{
+			wantProgress: []DownloadProgress{
 				{RelCompleted: .1, Elapsed: time.Second * 10, Remaining: time.Minute + time.Second*30},
 				{RelCompleted: .9, Elapsed: time.Second * 10, Remaining: time.Second},
 			},
+		},
+		{
+			name:         "Errors/LowerCase",
+			pipeIn:       "blah\nthis is an error\nsomething else\n",
+			wantProgress: []DownloadProgress{},
+			wantError:    errors.New("this is an error"),
+		},
+		{
+			name:         "Errors/MixedCase",
+			pipeIn:       "blah\nthis is an Error\nsomething else\n",
+			wantProgress: []DownloadProgress{},
+			wantError:    errors.New("this is an Error"),
+		},
+		{
+			name:         "Errors/UpperCase",
+			pipeIn:       "blah\nthis is an ERROR\nsomething else\n",
+			wantProgress: []DownloadProgress{},
+			wantError:    errors.New("this is an ERROR"),
 		},
 	}
 	for _, tt := range tests {
@@ -55,8 +75,14 @@ func Test_downloadProgressTracker_showDownloadProgress(t *testing.T) {
 
 			d.trackProgress()
 			actualProgress := h.progressUpdates
-			if !reflect.DeepEqual(actualProgress, tt.expectedProgress) {
-				t.Errorf("showDownloadProgress() produced output %v, expected %v", actualProgress, tt.expectedProgress)
+			if !reflect.DeepEqual(actualProgress, tt.wantProgress) {
+				t.Errorf("trackProgress() produced output %v, want %v", actualProgress, tt.wantProgress)
+			}
+
+			if nil != tt.wantError && tt.wantError.Error() != h.err.Error() {
+				t.Errorf("trackProgress() produced error %v, want %v", h.err, tt.wantError)
+			} else if (nil == h.err) != (nil == tt.wantError) {
+				t.Errorf("trackProgress() produced error %v, want %v", h.err, tt.wantError)
 			}
 		})
 	}
@@ -235,6 +261,29 @@ func Test_consoleProgressHandler_UpdateProgress(t *testing.T) {
 
 			if !reflect.DeepEqual(actualOutput, tt.expectedOutput) {
 				t.Errorf("got output = %q, want %q", buf, tt.expectedOutput)
+			}
+		})
+	}
+}
+
+func Test_downloadProgressTracker_reportError(t *testing.T) {
+	tests := []struct {
+		name string // description of this test case
+		line string
+	}{
+		{
+			name: "LineReportedAsIs",
+			line: "This is the error that is reported.",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := &testProgressHandler{progressUpdates: []DownloadProgress{}}
+			d := &downloadProgressTracker{handler: h}
+			d.reportError(tt.line)
+
+			if tt.line != h.err.Error() {
+				t.Errorf("reportError(); got error %q, want %q", h.err, tt.line)
 			}
 		})
 	}
