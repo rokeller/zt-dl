@@ -3,9 +3,30 @@ import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
 import { useSnackbar } from 'notistack';
 import React from 'react';
-import type { DownloadStartedEvent, PendingDownload, ProgressUpdatedEvent, QueueEvent, StateUpdatedEvent } from '../models';
+import type {
+    ClientEvent, DownloadStartedEvent, PendingDownload, ProgressUpdatedEvent,
+    ServerEvent, SourceStream, StateUpdatedEvent
+} from '../models';
 import { DownloadProgress } from './DownloadProgress';
 import { QueueFabMenu } from './QueueFabMenu';
+import { StreamSelectionDialog } from './StreamSelectionDialog';
+
+type SourceStreamsSelectedHandler = (streams: SourceStream[]) => void;
+
+function noopSourceStreamSelectionHandler() { }
+
+function sendEvent(ws: WebSocket, e: ClientEvent) {
+    if (!ws) {
+        return;
+    }
+    const json = JSON.stringify(e, null, 0);
+    ws.send(json);
+}
+
+function selectStreams(ws: WebSocket, correlation: string, streams: SourceStream[]) {
+    streams = streams.map((s) => ({ index: s.index }));
+    sendEvent(ws, { correlation, streamsSelected: { streams } });
+}
 
 export function DownloadQueue() {
     const { enqueueSnackbar } = useSnackbar();
@@ -13,6 +34,8 @@ export function DownloadQueue() {
     const [progress, setProgress] = React.useState<ProgressUpdatedEvent>();
     const [downloading, setDownloading] = React.useState<DownloadStartedEvent>();
     const [state, setState] = React.useState<StateUpdatedEvent>();
+    const [sourceStreams, setSourceStreams] = React.useState<SourceStream[]>([]);
+    const [onSourceStreamsSelected, setOnSourceStreamsSelected] = React.useState<SourceStreamsSelectedHandler>();
 
     React.useEffect(() => {
         const websocket = new WebSocket('ws://' + window.location.host + '/api/queues/events');
@@ -34,7 +57,7 @@ export function DownloadQueue() {
             console.error('websocket error:', event);
         };
         websocket.onmessage = (event) => {
-            const e = JSON.parse(event.data) as QueueEvent;
+            const e = JSON.parse(event.data) as ServerEvent;
             if (e.queueUpdated) {
                 setPending(e.queueUpdated.queue);
             } else if (e.downloadStarted) {
@@ -55,6 +78,13 @@ export function DownloadQueue() {
             } else if (e.stateUpdated) {
                 setState(e.stateUpdated);
                 setProgress(undefined);
+            } else if (e.selectStreams) {
+                setSourceStreams(e.selectStreams.streams);
+                const handler = (streams: SourceStream[]) => {
+                    selectStreams(websocket, e.correlation || '', streams);
+                    setOnSourceStreamsSelected(undefined);
+                }
+                setOnSourceStreamsSelected(() => handler);
             } else {
                 console.info('received unknown/unsupported event from server:', e, event);
             }
@@ -77,6 +107,10 @@ export function DownloadQueue() {
 
     return (
         <Toolbar sx={{ gap: 2, }}>
+            <StreamSelectionDialog
+                open={onSourceStreamsSelected != undefined}
+                sourceStreams={sourceStreams}
+                onClose={onSourceStreamsSelected || noopSourceStreamSelectionHandler} />
             <QueueFabMenu queue={pending} />
             {downloading ?
                 progress ?
