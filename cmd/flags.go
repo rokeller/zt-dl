@@ -7,8 +7,9 @@ import (
 type Flag string
 
 const (
-	Email  = Flag("email")
-	Domain = Flag("domain")
+	Email     = Flag("email")
+	Domain    = Flag("domain")
+	Overwrite = Flag("overwrite")
 )
 
 func addEmailAndDomainFlags(cmd *cobra.Command) {
@@ -16,4 +17,8 @@ func addEmailAndDomainFlags(cmd *cobra.Command) {
 	cmd.MarkFlagRequired(string(Email))
 
 	cmd.Flags().StringP(string(Domain), "d", "zattoo.com", "Domain of your Zattoo subscription.")
+}
+
+func addDownloadFlags(cmd *cobra.Command) {
+	cmd.Flags().BoolP(string(Overwrite), "y", false, "Overwrite existing files?")
 }

@@ -35,7 +35,13 @@ func TestServe(t *testing.T) {
 			if nil != err {
 				t.Fatalf("failed to get temporary dir: %v", err)
 			}
-			if err := Serve(ctx, a, outdir, tt.port, false); (nil != err) != tt.wantErr {
+			if err := Serve(ctx,
+				WithZattooAccount(a),
+				WithOutputDir(outdir),
+				WithPort(tt.port),
+				WithOverwrite(false),
+				WithOpenWebUI(false),
+			); (nil != err) != tt.wantErr {
 				t.Errorf("Serve() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})

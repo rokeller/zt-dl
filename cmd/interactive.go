@@ -35,12 +35,21 @@ func runInteractiveCmd(cmd *cobra.Command, args []string) error {
 
 	outdir := cmd.Flag(string(OutDir)).Value.String()
 	port, _ := cmd.Flags().GetUint16(string(Port))
-	open, _ := cmd.Flags().GetBool(string(OpenWebUI))
-	return server.Serve(cmd.Context(), acct, outdir, port, open)
+	overwrite, _ := cmd.Flags().GetBool(string(Overwrite))
+	openUI, _ := cmd.Flags().GetBool(string(OpenWebUI))
+
+	return server.Serve(cmd.Context(),
+		server.WithZattooAccount(acct),
+		server.WithPort(port),
+		server.WithOutputDir(outdir),
+		server.WithOverwrite(overwrite),
+		server.WithOpenWebUI(openUI),
+	)
 }
 
 func init() {
 	addEmailAndDomainFlags(interactiveCmd)
+	addDownloadFlags(interactiveCmd)
 	rootCmd.AddCommand(interactiveCmd)
 
 	cwd, err := os.Getwd()

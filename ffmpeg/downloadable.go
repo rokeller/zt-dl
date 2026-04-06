@@ -14,18 +14,31 @@ type downloadable struct {
 	inputUrl   string
 	outputPath string
 
+	overwrite bool
+
 	format  format
 	streams []SourceStream
 }
 
-func NewDownloadable(inputUrl, outputPath string) downloadable {
-	return downloadable{
+func NewDownloadable(
+	inputUrl, outputPath string,
+	options ...DownloadableOption,
+) *downloadable {
+	d := &downloadable{
 		inputUrl:   inputUrl,
 		outputPath: outputPath,
 	}
+	for _, option := range options {
+		option(d)
+	}
+	return d
 }
 
-func (d *downloadable) Download(ctx context.Context, selector StreamsSelector, progress DownloadProgressHandler) error {
+func (d *downloadable) Download(
+	ctx context.Context,
+	selector StreamsSelector,
+	progress DownloadProgressHandler,
+) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -43,6 +56,12 @@ func (d *downloadable) Download(ctx context.Context, selector StreamsSelector, p
 	args := []string{
 		"-protocol_whitelist", protocolWhiteList,
 		"-i", d.inputUrl,
+	}
+
+	if d.overwrite {
+		args = append(args, "-y")
+	} else {
+		args = append(args, "-n")
 	}
 
 	fmt.Printf("Duration: %s\n", d.format.Duration)

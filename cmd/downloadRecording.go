@@ -22,6 +22,7 @@ This requires [1mffmpeg[0m and [1mffprobe[0m to be in the PATH.`,
 
 func init() {
 	addEmailAndDomainFlags(downloadRecordingCmd)
+	addDownloadFlags(downloadRecordingCmd)
 	rootCmd.AddCommand(downloadRecordingCmd)
 
 	downloadRecordingCmd.Flags().StringP("out", "o", "", "Name of the output file")
@@ -43,6 +44,7 @@ func runDownloadRecordingCmd(cmd *cobra.Command, args []string) error {
 
 	email := cmd.Flag(string(Email)).Value.String()
 	domain := cmd.Flag(string(Domain)).Value.String()
+	overwrite, _ := cmd.Flags().GetBool(string(Overwrite))
 	acct := zattoo.NewAccount(email, domain)
 	if err := acct.Login(); nil != err {
 		return err
@@ -53,7 +55,8 @@ func runDownloadRecordingCmd(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	d := ffmpeg.NewDownloadable(url, out)
+	d := ffmpeg.NewDownloadable(url, out,
+		ffmpeg.WithOverwrite(overwrite))
 
 	fmt.Println("Detecting streams ...")
 	if err := d.DetectStreams(cmd.Context()); nil != err {

@@ -94,7 +94,8 @@ func (q *downloadQueue) downloadRecording(r toDownload, done chan<- struct{}) {
 		return
 	}
 
-	d := ffmpeg.NewDownloadable(url, r.OutputPath)
+	d := ffmpeg.NewDownloadable(url, r.OutputPath,
+		ffmpeg.WithOverwrite(q.server.overwrite))
 	q.hub.outbox <- serverEvent{
 		StateUpdated: &eventStateUpdated{State: "detect_streams", Reason: "detecting recording audio and video streams ..."},
 	}
