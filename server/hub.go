@@ -16,22 +16,37 @@ const (
 
 // TODO: buffer some events (eventQueueUpdated, eventDownloadStarted, or even last of every event) so new websocket connections can receive those too
 
-// wsHub maintains the set of active clients and broadcasts messages to the clients.
+// wsHub maintains the set of active clients, broadcasts messages to the clients,
+// and receives messages from the clients.
 type wsHub struct {
-	upgrader   websocket.Upgrader
-	clients    map[*wsClient]struct{}
-	outbox     chan event
+	upgrader websocket.Upgrader
+	clients  map[*wsClient]struct{}
+	outbox   chan serverEvent
+	inbox    chan sourcedClientEvent
+	// Register/unregister for websocket clients
 	register   chan *wsClient
 	unregister chan *wsClient
+	// Add/remove for client event handlers
+	addHandler    chan clientEventHandler
+	removeHandler chan clientEventHandler
+
+	clientEventHandlers []clientEventHandler
 
 	lastQueueUpdated    *eventQueueUpdated
 	lastDownloadStarted *eventDownloadStarted
 }
 
+var _ http.Handler = &wsHub{}
+
 type wsClient struct {
 	hub    *wsHub
 	conn   *websocket.Conn
-	outbox chan event
+	outbox chan serverEvent
+}
+
+type sourcedClientEvent struct {
+	client *wsClient
+	event  clientEvent
 }
 
 func newHub() *wsHub {
@@ -40,10 +55,13 @@ func newHub() *wsHub {
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
 		},
-		outbox:     make(chan event, 32),
-		register:   make(chan *wsClient, 8),
-		unregister: make(chan *wsClient, 8),
-		clients:    make(map[*wsClient]struct{}),
+		clients:       make(map[*wsClient]struct{}),
+		outbox:        make(chan serverEvent, 32),
+		inbox:         make(chan sourcedClientEvent, 1),
+		register:      make(chan *wsClient, 8),
+		unregister:    make(chan *wsClient, 8),
+		addHandler:    make(chan clientEventHandler, 1),
+		removeHandler: make(chan clientEventHandler, 1),
 	}
 }
 
@@ -53,24 +71,36 @@ func (h *wsHub) run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 
-		// new client subscribing to receive events.
+		// New client subscribing to receive events.
 		case client := <-h.register:
 			h.clients[client] = struct{}{}
 			if nil != h.lastQueueUpdated {
-				client.outbox <- event{QueueUpdated: h.lastQueueUpdated}
+				client.outbox <- serverEvent{QueueUpdated: h.lastQueueUpdated}
 			}
 			if nil != h.lastDownloadStarted {
-				client.outbox <- event{DownloadStarted: h.lastDownloadStarted}
+				client.outbox <- serverEvent{DownloadStarted: h.lastDownloadStarted}
 			}
 
-		// client unsubscribing from events.
+		// Client unsubscribing from events.
 		case client := <-h.unregister:
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
 				close(client.outbox)
 			}
 
-		// event received in hub's outbox to broadcast to clients
+		// A handler for client events is added.
+		case handler := <-h.addHandler:
+			h.clientEventHandlers = append(h.clientEventHandlers, handler)
+
+		// A handler for client events is removed.
+		case handler := <-h.removeHandler:
+			for i, hh := range h.clientEventHandlers {
+				if hh == handler {
+					h.clientEventHandlers = append(h.clientEventHandlers[:i], h.clientEventHandlers[i+1:]...)
+				}
+			}
+
+		// Event received in hub's outbox to broadcast to clients.
 		case event := <-h.outbox:
 			// Buffer some important events for new clients.
 			if nil != event.QueueUpdated {
@@ -88,10 +118,17 @@ func (h *wsHub) run(ctx context.Context) {
 					delete(h.clients, client)
 				}
 			}
+
+		// Event received from a client in hub's inbox.
+		case event := <-h.inbox:
+			for _, h := range h.clientEventHandlers {
+				h.Handle(event)
+			}
 		}
 	}
 }
 
+// ServeHTTP implements [http.Handler].
 func (h *wsHub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	wupgrade := w
 	if u, ok := w.(interface{ Unwrap() http.ResponseWriter }); ok {
@@ -109,18 +146,20 @@ func (h *wsHub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	client := &wsClient{hub: h, conn: conn, outbox: make(chan event, 64)}
+	client := &wsClient{hub: h, conn: conn, outbox: make(chan serverEvent, 64)}
 	client.hub.register <- client
 
 	// Start the write pump that writes events out to the client.
 	go client.writePump()
+	// Start the read pump that reads events from the client.
+	go client.readPump()
 }
 
 // writePump pumps messages from the hub to the websocket connection.
 //
-// A goroutine running writePump is started for each connection. The
-// application ensures that there is at most one writer to a connection by
-// executing all writes from this goroutine.
+// A goroutine running writePump is started for each connection. The application
+// ensures that there is at most one writer to a connection by executing all
+// writes from this goroutine.
 func (c *wsClient) writePump() {
 	defer c.conn.Close()
 
@@ -134,4 +173,24 @@ func (c *wsClient) writePump() {
 	}
 
 	c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+}
+
+// readPump pumps messages from the client to the hub.
+//
+// A goroutine running readPump is started for each connection.
+func (c *wsClient) readPump() {
+	defer c.conn.Close()
+
+	for {
+		var e clientEvent
+		err := c.conn.ReadJSON(&e)
+		if nil != err {
+			fmt.Fprintf(os.Stderr, "Failed to read event from the websocket: %v\n", err)
+			break
+		}
+		c.hub.inbox <- sourcedClientEvent{
+			client: c,
+			event:  e,
+		}
+	}
 }

@@ -22,7 +22,7 @@ func Test_downloadQueue_Run(t *testing.T) {
 		name       string
 		q          []toDownload
 		ctxFactory func(parent context.Context) (context.Context, context.CancelFunc)
-		wantEvents []event
+		wantEvents []serverEvent
 	}{
 		{
 			name: "ContextCancelled/RightAway",
@@ -48,7 +48,7 @@ func Test_downloadQueue_Run(t *testing.T) {
 				ctx, cancel := context.WithTimeout(parent, time.Second+time.Millisecond*10)
 				return ctx, cancel
 			},
-			wantEvents: []event{
+			wantEvents: []serverEvent{
 				{DownloadStarted: &eventDownloadStarted{Filename: "/tmp/foo/bar"}},
 				{QueueUpdated: &eventQueueUpdated{Queue: []toDownload{}}},
 				{StateUpdated: &eventStateUpdated{State: "get_stream_url", Reason: "getting recording stream URL ..."}},
@@ -65,7 +65,7 @@ func Test_downloadQueue_Run(t *testing.T) {
 				ctx, cancel := context.WithTimeout(parent, time.Second*2)
 				return ctx, cancel
 			},
-			wantEvents: []event{
+			wantEvents: []serverEvent{
 				{DownloadStarted: &eventDownloadStarted{Filename: "/dev/null"}},
 				{QueueUpdated: &eventQueueUpdated{Queue: []toDownload{}}},
 				{StateUpdated: &eventStateUpdated{State: "get_stream_url", Reason: "getting recording stream URL ..."}},
@@ -103,8 +103,8 @@ func Test_downloadQueue_Run(t *testing.T) {
 			defer cancel()
 			q.Run(ctx)
 
-			consumeEvents(t, s.hub.outbox, tt.wantEvents)
-			ensureNoMoreEvents(t, s.hub.outbox)
+			consumeServerEvents(t, s.hub.outbox, tt.wantEvents)
+			ensureNoMoreServerEvents(t, s.hub.outbox)
 		})
 	}
 }
@@ -116,7 +116,7 @@ func Test_downloadQueue_checkForDownloads(t *testing.T) {
 		resp       test.HttpResponse
 		want       bool
 		wantCh     bool
-		wantEvents []event
+		wantEvents []serverEvent
 	}{
 		{
 			name:   "EmptyQueue",
@@ -132,7 +132,7 @@ func Test_downloadQueue_checkForDownloads(t *testing.T) {
 			resp:   test.HttpResponse{StatusCode: 404},
 			want:   true,
 			wantCh: true,
-			wantEvents: []event{
+			wantEvents: []serverEvent{
 				{DownloadStarted: &eventDownloadStarted{Filename: "/tmp/blah.mp4"}},
 				{QueueUpdated: &eventQueueUpdated{Queue: []toDownload{}}},
 			},
@@ -176,8 +176,8 @@ func Test_downloadQueue_checkForDownloads(t *testing.T) {
 				t.Error("downloadQueue.checkForDownloads() wantCh, but got nil")
 			}
 
-			consumeEvents(t, s.hub.outbox, tt.wantEvents)
-			ensureNoMoreEvents(t, s.hub.outbox)
+			consumeServerEvents(t, s.hub.outbox, tt.wantEvents)
+			ensureNoMoreServerEvents(t, s.hub.outbox)
 		})
 	}
 }
@@ -187,13 +187,13 @@ func Test_downloadQueue_downloadRecording(t *testing.T) {
 		name          string
 		r             toDownload
 		respRecording test.HttpResponse
-		wantEvents    []event
+		wantEvents    []serverEvent
 	}{
 		{
 			name:          "GetRecordingStreamUrlFails",
 			r:             toDownload{RecordingId: 1234, OutputPath: "/tmp/GetRecordingStreamUrlFails"},
 			respRecording: test.HttpResponse{StatusCode: 404},
-			wantEvents: []event{
+			wantEvents: []serverEvent{
 				{StateUpdated: &eventStateUpdated{State: "get_stream_url", Reason: "getting recording stream URL ..."}},
 				{DownloadErrored: &eventDownloadErrored{Filename: "/tmp/GetRecordingStreamUrlFails", Reason: "failed to get recording with status 404"}},
 			},
@@ -225,8 +225,8 @@ func Test_downloadQueue_downloadRecording(t *testing.T) {
 			q.downloadRecording(tt.r, done)
 			<-done
 
-			consumeEvents(t, s.hub.outbox, tt.wantEvents)
-			ensureNoMoreEvents(t, s.hub.outbox)
+			consumeServerEvents(t, s.hub.outbox, tt.wantEvents)
+			ensureNoMoreServerEvents(t, s.hub.outbox)
 		})
 	}
 }
@@ -277,12 +277,12 @@ func Test_downloadQueue_downloadRecording_DetectStreamsFails(t *testing.T) {
 	q.downloadRecording(toDownload{RecordingId: 1111}, done)
 	<-done
 
-	consumeEvents(t, s.hub.outbox, []event{
+	consumeServerEvents(t, s.hub.outbox, []serverEvent{
 		{StateUpdated: &eventStateUpdated{State: "get_stream_url", Reason: "getting recording stream URL ..."}},
 		{StateUpdated: &eventStateUpdated{State: "detect_streams", Reason: "detecting recording audio and video streams ..."}},
 		{DownloadErrored: &eventDownloadErrored{Reason: "failed to run ffprobe: exit status 2"}},
 	})
-	ensureNoMoreEvents(t, s.hub.outbox)
+	ensureNoMoreServerEvents(t, s.hub.outbox)
 }
 
 func Test_downloadQueue_downloadRecording_DownloadFails(t *testing.T) {
@@ -354,8 +354,9 @@ func Test_downloadQueue_downloadRecording_DownloadFails(t *testing.T) {
 	defer ts.Close()
 	a := zattoo.NewAccountWithSession(t, host, client)
 	s := &server{
-		a:   a,
-		hub: newHub(),
+		a:                      a,
+		hub:                    newHub(),
+		streamsSelectorFactory: bestStreamsSelectorFactory,
 	}
 	q := &downloadQueue{
 		server: s,
@@ -366,13 +367,13 @@ func Test_downloadQueue_downloadRecording_DownloadFails(t *testing.T) {
 	q.downloadRecording(toDownload{RecordingId: 1111}, done)
 	<-done
 
-	consumeEvents(t, s.hub.outbox, []event{
+	consumeServerEvents(t, s.hub.outbox, []serverEvent{
 		{StateUpdated: &eventStateUpdated{State: "get_stream_url", Reason: "getting recording stream URL ..."}},
 		{StateUpdated: &eventStateUpdated{State: "detect_streams", Reason: "detecting recording audio and video streams ..."}},
 		{StateUpdated: &eventStateUpdated{State: "download", Reason: "starting download ..."}},
 		{DownloadErrored: &eventDownloadErrored{Reason: "ffmpeg failed: exit status 1"}},
 	})
-	ensureNoMoreEvents(t, s.hub.outbox)
+	ensureNoMoreServerEvents(t, s.hub.outbox)
 }
 
 func Test_downloadQueue_downloadRecording_DownloadSucceeds(t *testing.T) {
@@ -444,8 +445,9 @@ func Test_downloadQueue_downloadRecording_DownloadSucceeds(t *testing.T) {
 	defer ts.Close()
 	a := zattoo.NewAccountWithSession(t, host, client)
 	s := &server{
-		a:   a,
-		hub: newHub(),
+		a:                      a,
+		hub:                    newHub(),
+		streamsSelectorFactory: bestStreamsSelectorFactory,
 	}
 	q := &downloadQueue{
 		server: s,
@@ -456,12 +458,12 @@ func Test_downloadQueue_downloadRecording_DownloadSucceeds(t *testing.T) {
 	q.downloadRecording(toDownload{RecordingId: 1111}, done)
 	<-done
 
-	consumeEvents(t, s.hub.outbox, []event{
+	consumeServerEvents(t, s.hub.outbox, []serverEvent{
 		{StateUpdated: &eventStateUpdated{State: "get_stream_url", Reason: "getting recording stream URL ..."}},
 		{StateUpdated: &eventStateUpdated{State: "detect_streams", Reason: "detecting recording audio and video streams ..."}},
 		{StateUpdated: &eventStateUpdated{State: "download", Reason: "starting download ..."}},
 	})
-	ensureNoMoreEvents(t, s.hub.outbox)
+	ensureNoMoreServerEvents(t, s.hub.outbox)
 }
 
 func Test_downloadQueue_InQueue(t *testing.T) {
@@ -548,10 +550,10 @@ func Test_downloadQueue_Enqueue(t *testing.T) {
 			if len(q.q) != tt.wantQueueLen {
 				t.Errorf("queue length is %d, but want %d", len(q.q), tt.wantQueueLen)
 			}
-			consumeEvent(t, s.hub.outbox, event{QueueUpdated: &eventQueueUpdated{
+			consumeServerEvent(t, s.hub.outbox, serverEvent{QueueUpdated: &eventQueueUpdated{
 				Queue: append(tt.q, toDownload{tt.args.recordingId, tt.args.outputPath}),
 			}})
-			ensureNoMoreEvents(t, s.hub.outbox)
+			ensureNoMoreServerEvents(t, s.hub.outbox)
 		})
 	}
 }
@@ -561,7 +563,7 @@ func Test_downloadQueue_Dequeue(t *testing.T) {
 		name         string // description of this test case
 		q            []toDownload
 		recordingId  int64
-		wantEvents   []event
+		wantEvents   []serverEvent
 		wantQueueLen int
 	}{
 		{
@@ -584,7 +586,7 @@ func Test_downloadQueue_Dequeue(t *testing.T) {
 				{111, "blah"},
 			},
 			recordingId: 333,
-			wantEvents: []event{
+			wantEvents: []serverEvent{
 				{QueueUpdated: &eventQueueUpdated{
 					Queue: []toDownload{{111, "blah"}},
 				}},
@@ -599,7 +601,7 @@ func Test_downloadQueue_Dequeue(t *testing.T) {
 				{333, "blotz"},
 			},
 			recordingId: 444,
-			wantEvents: []event{
+			wantEvents: []serverEvent{
 				{QueueUpdated: &eventQueueUpdated{
 					Queue: []toDownload{{111, "blah"}, {333, "blotz"}},
 				}},
@@ -613,7 +615,7 @@ func Test_downloadQueue_Dequeue(t *testing.T) {
 				{555, "blah"},
 			},
 			recordingId: 555,
-			wantEvents: []event{
+			wantEvents: []serverEvent{
 				{QueueUpdated: &eventQueueUpdated{
 					Queue: []toDownload{{333, "blotz"}},
 				}},
@@ -636,8 +638,8 @@ func Test_downloadQueue_Dequeue(t *testing.T) {
 				t.Errorf("queue length is %d, but want %d", len(q.q), tt.wantQueueLen)
 			}
 
-			consumeEvents(t, s.hub.outbox, tt.wantEvents)
-			ensureNoMoreEvents(t, s.hub.outbox)
+			consumeServerEvents(t, s.hub.outbox, tt.wantEvents)
+			ensureNoMoreServerEvents(t, s.hub.outbox)
 		})
 	}
 }
@@ -738,12 +740,12 @@ func Test_broadcastDownloadProgressHandler_UpdateProgress(t *testing.T) {
 				eventQueueUpdated: tt.fields.eventQueueUpdated,
 			}
 			b.UpdateProgress(tt.p)
-			consumeEvent(t, b.hub.outbox, event{ProgressUpdated: &eventProgressUpdated{
+			consumeServerEvent(t, b.hub.outbox, serverEvent{ProgressUpdated: &eventProgressUpdated{
 				RelCompleted: tt.p.RelCompleted,
 				Elapsed:      tt.p.Elapsed.Truncate(time.Second).String(),
 				Remaining:    tt.p.Remaining.String(),
 			}})
-			ensureNoMoreEvents(t, s.hub.outbox)
+			ensureNoMoreServerEvents(t, s.hub.outbox)
 		})
 	}
 }

@@ -13,6 +13,12 @@ export interface Recording {
     end: string | Date;
 }
 
+export interface SourceStream {
+    index: number;
+    type?: string;
+    desc?: string;
+}
+
 export function fixRecording(r: Recording) {
     r.start = ensureDate(r.start);
     r.end = ensureDate(r.end);
@@ -47,10 +53,25 @@ export interface StateUpdatedEvent {
     reason: string;
 }
 
-export interface QueueEvent {
+export interface StreamSelectionRequestedEvent {
+    streams: Array<SourceStream>;
+}
+
+export interface ServerEvent {
+    correlation?: string;
     queueUpdated?: QueueUpdatedEvent;
     downloadStarted?: DownloadStartedEvent;
     progressUpdated?: ProgressUpdatedEvent;
-    stateUpdated?: StateUpdatedEvent;
     downloadErrored?: DownloadErroredEvent;
+    stateUpdated?: StateUpdatedEvent;
+    selectStreams?: StreamSelectionRequestedEvent;
+}
+
+export interface StreamsSelectedEvent {
+    streams: Array<SourceStream>;
+}
+
+export interface ClientEvent {
+    correlation?: string;
+    streamsSelected?: StreamsSelectedEvent;
 }

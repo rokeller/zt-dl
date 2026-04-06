@@ -1,11 +1,19 @@
 package server
 
-type event struct {
-	QueueUpdated    *eventQueueUpdated    `json:"queueUpdated,omitempty"`
-	DownloadStarted *eventDownloadStarted `json:"downloadStarted,omitempty"`
-	ProgressUpdated *eventProgressUpdated `json:"progressUpdated,omitempty"`
-	StateUpdated    *eventStateUpdated    `json:"stateUpdated,omitempty"`
-	DownloadErrored *eventDownloadErrored `json:"downloadErrored,omitempty"`
+// serverEvent defines the root object for an event sent by the server.
+type serverEvent struct {
+	Correlation              string                         `json:"correlation,omitempty"`
+	QueueUpdated             *eventQueueUpdated             `json:"queueUpdated,omitempty"`
+	DownloadStarted          *eventDownloadStarted          `json:"downloadStarted,omitempty"`
+	ProgressUpdated          *eventProgressUpdated          `json:"progressUpdated,omitempty"`
+	DownloadErrored          *eventDownloadErrored          `json:"downloadErrored,omitempty"`
+	StateUpdated             *eventStateUpdated             `json:"stateUpdated,omitempty"`
+	StreamSelectionRequested *eventStreamSelectionRequested `json:"selectStreams,omitempty"`
+}
+
+type clientEvent struct {
+	Correlation     string                `json:"correlation,omitempty"`
+	StreamsSelected *eventStreamsSelected `json:"streamsSelected,omitempty"`
 }
 
 type eventQueueUpdated struct {
@@ -30,4 +38,18 @@ type eventDownloadErrored struct {
 type eventStateUpdated struct {
 	State  string `json:"state"`
 	Reason string `json:"reason"`
+}
+
+type eventStreamSelectionRequested struct {
+	SourceStreams []sourceStream `json:"streams"`
+}
+
+type eventStreamsSelected struct {
+	SelectedStreams []sourceStream `json:"streams"`
+}
+
+type sourceStream struct {
+	Index       int    `json:"index"`
+	Type        string `json:"type"`
+	Description string `json:"desc"`
 }

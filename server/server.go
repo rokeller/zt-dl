@@ -13,6 +13,7 @@ import (
 
 	"github.com/gorilla/mux"
 	e "github.com/rokeller/zt-dl/exec"
+	"github.com/rokeller/zt-dl/ffmpeg"
 	"github.com/rokeller/zt-dl/zattoo"
 )
 
@@ -24,30 +25,34 @@ type server struct {
 	dlq *downloadQueue
 	hub *wsHub
 
-	port   uint16
-	outdir string
+	port      uint16
+	outdir    string
+	overwrite bool
+	openWebUI bool
+
+	streamsSelectorFactory func() ffmpeg.StreamsSelector
 }
+
+type ServeOption func(*server)
 
 func Serve(
 	ctx context.Context,
-	a *zattoo.Account,
-	outdir string,
-	port uint16,
-	openWebUI bool,
+	options ...ServeOption,
 ) error {
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 
 	s := &server{
-		a:   a,
 		hub: newHub(),
-
-		port:   port,
-		outdir: outdir,
 	}
+
+	for _, option := range options {
+		option(s)
+	}
+
 	srv := s.startHttpServer(ctx, wg)
-	if openWebUI {
-		open(ctx, fmt.Sprintf("http://localhost:%d/", port))
+	if s.openWebUI {
+		open(ctx, fmt.Sprintf("http://localhost:%d/", s.port))
 	}
 
 	// Wait for the context to be cancelled or done.

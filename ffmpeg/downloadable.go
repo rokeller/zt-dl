@@ -14,46 +14,74 @@ type downloadable struct {
 	inputUrl   string
 	outputPath string
 
-	format       format
-	audioStreams []audioStream
-	videoStreams []videoStream
+	overwrite bool
+
+	format  format
+	streams []SourceStream
 }
 
-func NewDownloadable(inputUrl, outputPath string) downloadable {
-	return downloadable{
+func NewDownloadable(
+	inputUrl, outputPath string,
+	options ...DownloadableOption,
+) *downloadable {
+	d := &downloadable{
 		inputUrl:   inputUrl,
 		outputPath: outputPath,
 	}
+	for _, option := range options {
+		option(d)
+	}
+	return d
 }
 
-func (d *downloadable) Download(ctx context.Context, progress DownloadProgressHandler) error {
+func (d *downloadable) Download(
+	ctx context.Context,
+	selector StreamsSelector,
+	progress DownloadProgressHandler,
+) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	durationMsec := d.format.Duration.Milliseconds()
-	audio := d.getBestAudioStream()
-	video := d.getBestVideoStream()
-	if nil == audio {
-		return errors.New("failed to get best audio stream")
+	if nil == d.streams || len(d.streams) <= 0 {
+		return errors.New("no streams available for download")
 	}
-	if nil == video {
-		return errors.New("failed to get best video stream")
+	streams, err := selector.SelectStreams(d.streams)
+	if nil != err {
+		return fmt.Errorf("failed to select streams to download: %w", err)
+	} else if len(streams) <= 0 {
+		return errors.New("no streams selected for download")
 	}
 
-	fmt.Printf("Selected audio stream: sample rate %dHz (stream #%d)\n",
-		audio.SampleRate, audio.Index)
-	fmt.Printf("Selected video stream: width/height %d/%d, bit rate %dbps, avg frame rate %dfps (stream #%d)\n",
-		video.Width, video.Height, video.BitRate, video.AvgFrameRate, video.Index)
-	fmt.Printf("Duration: %s\n", d.format.Duration)
-
-	ffmpegCmd := e.CmdFactory(ctx, "ffmpeg",
+	args := []string{
 		"-protocol_whitelist", protocolWhiteList,
 		"-i", d.inputUrl,
-		"-map", fmt.Sprintf("0:%d", audio.Index),
-		"-map", fmt.Sprintf("0:%d", video.Index),
-		"-c", "copy",
-		d.outputPath)
+	}
 
+	if d.overwrite {
+		args = append(args, "-y")
+	} else {
+		args = append(args, "-n")
+	}
+
+	fmt.Printf("Duration: %s\n", d.format.Duration)
+	fmt.Println("Selected stream(s) for download:")
+	for i, s := range streams {
+		t := "Unknown"
+		switch s.(type) {
+		case *AudioStream:
+			t = "Audio"
+		case *SubtitleStream:
+			t = "Subtitle"
+		case *VideoStream:
+			t = "Video"
+		}
+		fmt.Printf("    [%0d] %s: %s\n", i+1, t, s.String())
+		args = append(args, "-map", fmt.Sprintf("0:%d", s.Index()))
+	}
+
+	args = append(args, "-c", "copy", d.outputPath)
+	ffmpegCmd := e.CmdFactory(ctx, "ffmpeg", args...)
 	stderr, err := ffmpegCmd.StderrPipe()
 	if nil != err {
 		return fmt.Errorf("failed to redirect stderr to pipe: %w", err)
