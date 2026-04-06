@@ -1,12 +1,12 @@
 VERSION_RAW = $(shell git describe --tags 2>/dev/null || echo '0.0.0')
 
-zt-dl: $(wildcard **/*.go)
-	@go build -ldflags \
+zt-dl: $(wildcard **/*.go *.go)
+	go build -ldflags \
 		"-X github.com/rokeller/zt-dl/cmd.version=${VERSION_RAW}-local"
 
 .PHONY: release
 release:
-	@CGO_ENABLED=0 go build -ldflags "-s -w \
+	CGO_ENABLED=0 go build -ldflags "-s -w \
 		-X github.com/rokeller/zt-dl/cmd.version=${VERSION_RAW}-local"
 
 .PHONY: client
