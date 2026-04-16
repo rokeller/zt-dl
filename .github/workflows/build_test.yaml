@@ -39,7 +39,6 @@ jobs:
 
     - name: Build Web UI
       run: |
-        pnpm -C server/client/ approve-builds --all
         pnpm -C server/client/ install
         pnpm -C server/client/ lint
         pnpm -C server/client/ build
