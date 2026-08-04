@@ -90,6 +90,12 @@ export function StreamSelectionDialog({
         setSelected(newSelected);
     }
 
+    React.useEffect(() => {
+        // Reset the selected streams when the sourceStreams change.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setSelected([]);
+    }, [sourceStreams]);
+
     const sortedStreams = sourceStreams.sort(compareSourceStreams);
     const items = (
         <SourceStreamsListItems sourceStreams={sortedStreams}
