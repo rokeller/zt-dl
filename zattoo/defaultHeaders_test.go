@@ -55,7 +55,7 @@ func Test_defaultHeadersRoundTripper_RoundTrip(t *testing.T) {
 			},
 			want: map[string][]string{
 				"Accept":           {"application/json"},
-				"User-Agent":       {"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"},
+				"User-Agent":       {"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36"},
 				"Content-Type":     {"application/x-www-form-urlencoded"},
 				"X-Requested-With": {"XMLHttpRequest"},
 				"Referer":          {"https://test.com/client"},
@@ -73,7 +73,7 @@ func Test_defaultHeadersRoundTripper_RoundTrip(t *testing.T) {
 			},
 			want: map[string][]string{
 				"Accept":           {"application/json"},
-				"User-Agent":       {"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"},
+				"User-Agent":       {"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36"},
 				"X-Requested-With": {"XMLHttpRequest"},
 				"Referer":          {"https://test.com/client"},
 				"Origin":           {"https://test.com"},
