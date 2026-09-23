@@ -12,7 +12,7 @@ type defaultHeadersRoundTripper struct {
 
 func (t *defaultHeadersRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	req.Header.Add("Accept", "application/json")
-	req.Header.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36")
+	req.Header.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36")
 	if req.Method == http.MethodPost {
 		req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	}
