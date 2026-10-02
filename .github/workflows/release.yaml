@@ -48,7 +48,7 @@ jobs:
 
     - name: Build CLI
       run: |
-        ARCHIVE_NAME="zt-dl-${{ matrix.os }}-${{ matrix.arch }}"
+        ARCHIVE_NAME="zt-dl-${{ matrix.os }}-${{ matrix.arch }}.tar.gz"
         CGO_ENABLED=0 GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build \
             -o '_out/' \
             -ldflags "-s -w \
