@@ -9,7 +9,7 @@ import Typography from '@mui/material/Typography';
 import { useSnackbar } from 'notistack';
 import type React from 'react';
 import type { Recording } from '../models';
-import { formatDate } from '../utils';
+import { formatDate, formatDuration, } from '../utils';
 
 const Thumbnail = styled('img')({
     maxWidth: 100,
@@ -92,6 +92,8 @@ export function RecordingListItem({ recording }: React.PropsWithChildren<Recordi
                     {formatDate(r.start)}
                     {' - '}
                     {formatDate(r.end)}
+                    {' '}
+                    ({formatDuration(r.start, r.end)})
                 </Typography>
             </ListItemText>
         </ListItem>

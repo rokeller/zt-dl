@@ -9,6 +9,8 @@ import React from 'react';
 import { DownloadQueue } from './components/DownloadQueue';
 import { RecordingsList } from './components/RecordingsList';
 
+const Version = import.meta.env.VITE_APP_VERSION || 'under-development';
+
 interface HideOnScrollProps {
     children?: React.ReactElement<unknown>;
 }
@@ -29,8 +31,12 @@ export function Layout() {
             <HideOnScroll>
                 <AppBar position='fixed'>
                     <Toolbar>
-                        <Typography variant='h6' component='div'>
+                        <Typography variant='h6'>
                             zt-dl - Zattoo Downloader
+                        </Typography>
+                        <Typography variant='caption'
+                            sx={{ marginLeft: 1, }}>
+                            ({Version})
                         </Typography>
                     </Toolbar>
                 </AppBar>
