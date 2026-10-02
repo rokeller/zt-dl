@@ -12,28 +12,27 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        os: ['linux','windows']
+        os: ['darwin','linux','windows']
         arch: ['386','amd64','arm','arm64']
         exclude:
-          - os: windows
+          - os: darwin
+            arch: '386'
+          - os: darwin
             arch: 'arm'
           - os: windows
-            arch: 'arm64'
+            arch: 'arm'
 
     steps:
     - uses: actions/checkout@v7
 
-    - uses: pnpm/action-setup@v6
+    - uses: pnpm/setup@v3
       with:
-        version: 10
-
-    - name: Set up Node
-      uses: actions/setup-node@v7
-      with:
-        node-version: 22.x
-        cache: pnpm
-        cache-dependency-path: |
-          server/client/pnpm-lock.yaml
+        version: 12
+        cache: true
+        runtime: node@lts
+        working-directory: server/client/
+        require-lockfile: true
+        install: true
 
     - name: Set up Go
       uses: actions/setup-go@v7
@@ -42,37 +41,22 @@ jobs:
 
     - name: Build Web UI
       run: |
-        pnpm -C server/client/ install
         pnpm -C server/client/ lint
         pnpm -C server/client/ build
+      env:
+        VITE_APP_VERSION: ${{ github.event.release.name }}
 
     - name: Build CLI
       run: |
-        case "${{ matrix.os }}" in
-            windows)
-                EXT='.exe' ;;
-            *)
-                EXT='' ;;
-        esac
-        
-        ARCHIVE_BASE_NAME="zt-dl-${{ matrix.os }}-${{ matrix.arch }}"
+        ARCHIVE_NAME="zt-dl-${{ matrix.os }}-${{ matrix.arch }}"
         CGO_ENABLED=0 GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build \
-            -o _out/zt-dl$EXT \
+            -o '_out/' \
             -ldflags "-s -w \
                 -X github.com/rokeller/zt-dl/cmd.version=${{ github.event.release.name }}"
         
-        case "${{ matrix.os }}" in
-            windows)
-                zip -j _out/$ARCHIVE_BASE_NAME.zip _out/zt-dl$EXT
-                echo "ARCHIVE_PATH=_out/$ARCHIVE_BASE_NAME.zip" >> $GITHUB_ENV
-                echo "ARCHIVE_MEDIA_TYPE=application/zip" >> $GITHUB_ENV
-                ;;
-            *)
-                tar -cvzf _out/$ARCHIVE_BASE_NAME.tar.gz -C _out zt-dl$EXT
-                echo "ARCHIVE_PATH=_out/$ARCHIVE_BASE_NAME.tar.gz" >> $GITHUB_ENV
-                echo "ARCHIVE_MEDIA_TYPE=application/gzip" >> $GITHUB_ENV
-                ;;
-        esac
+        tar -cvzf "$ARCHIVE_NAME" -C _out $(ls -A _out)
+        echo "ARCHIVE_PATH=$ARCHIVE_NAME" >> "$GITHUB_ENV"
+        echo "ARCHIVE_MEDIA_TYPE=application/gzip" >> "$GITHUB_ENV"
 
     - name: Upload to release
       uses: JasonEtco/upload-to-release@master
