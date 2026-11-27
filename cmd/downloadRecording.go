@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/rokeller/zt-dl/exec"
 	"github.com/rokeller/zt-dl/ffmpeg"
 	"github.com/rokeller/zt-dl/zattoo"
 	"github.com/spf13/cobra"
@@ -34,6 +35,10 @@ func init() {
 }
 
 func runDownloadRecordingCmd(cmd *cobra.Command, args []string) error {
+	if err := exec.ExecutablesPresent(); nil != err {
+		return err
+	}
+
 	out, err := cmd.Flags().GetString("out")
 	if nil != err {
 		return err
