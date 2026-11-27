@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/rokeller/zt-dl/exec"
 	"github.com/rokeller/zt-dl/server"
 	"github.com/rokeller/zt-dl/zattoo"
 	"github.com/spf13/cobra"
@@ -26,6 +27,10 @@ web interface requires [1mffmpeg[0m and [1mffprobe[0m to be in the PATH.`,
 }
 
 func runInteractiveCmd(cmd *cobra.Command, args []string) error {
+	if err := exec.ExecutablesPresent(); nil != err {
+		return err
+	}
+
 	email := cmd.Flag(string(Email)).Value.String()
 	domain := cmd.Flag(string(Domain)).Value.String()
 	acct := zattoo.NewAccount(email, domain)
