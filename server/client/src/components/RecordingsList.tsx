@@ -1,9 +1,9 @@
+import { Typography } from '@mui/material';
 import Divider from '@mui/material/Divider';
 import List from '@mui/material/List';
 import React from 'react';
 import { fixRecording, type Recording } from '../models';
 import { RecordingListItem, RecordingListItemSkeleton } from './RecordingListItem';
-import { Typography } from '@mui/material';
 
 function isReady(r: Recording): boolean {
     fixRecording(r);
@@ -42,31 +42,29 @@ export function RecordingsList() {
         loadRecordings();
     }, []);
 
-    let lastYear: number | undefined;
-    function renderConditionalYearDivider(r: Recording) {
-        const curYear = (r.start as Date).getFullYear();
-        if (curYear != lastYear) {
-            lastYear = curYear;
-            return (
-                <YearDivider year={curYear} key={'year-' + curYear} />
-            );
-        }
-        return null;
-    }
-
     if (fetchError) {
         return (
-            <Typography variant='h6' color='error'>Failed to get recordings ({fetchError}). Is the server running?</Typography>
+            <Typography variant='h6' color='error'>
+                Failed to get recordings ({fetchError}). Is the server running?
+            </Typography>
         );
     }
 
+    let lastYear: number | undefined;
     const listItems = recordings ?
-        recordings?.filter(isReady).map((r) => (
-            <>
-                {renderConditionalYearDivider(r)}
-                < RecordingListItem key={r.id} recording={r} />
-            </>
-        )) :
+        recordings?.filter(isReady).map((r) => {
+            const curYear = (r.start as Date).getFullYear();
+            const showDivider = curYear != lastYear;
+            // oxlint-disable-next-line react-hooks/immutability
+            lastYear = curYear;
+
+            return (
+                <>
+                    {showDivider && (<YearDivider year={curYear} key={'year-' + curYear} />)}
+                    < RecordingListItem key={'rec-' + r.id} recording={r} />
+                </>
+            );
+        }) :
         Array.from({ length: 12, }).map((_, i) => (
             <RecordingListItemSkeleton key={'skeleton-' + i} />
         ));
